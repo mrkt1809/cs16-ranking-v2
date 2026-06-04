@@ -1,0 +1,3942 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1f2e">
+<title>CS 1.6 — Ranking System (V2)</title>
+
+<!-- Firebase SDK v10 (compat namespace style) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+:root {
+  --gold:#f5b942; --gold-dim:#a37314;
+  --green:#3ddc6e; --green-dim:#1a6633;
+  --red:#ff5555; --blue:#5cb4ff; --orange:#ff9966;
+  --bg:#1a1f2e;
+  --panel:#252b3d;
+  --panel2:#2d3447;
+  --border:#3d4860;
+  --text:#e8edf5;
+  --dim:#a0aac0;
+  --ct:#5cb4ff; --t:#ff9966;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;overflow-x:hidden;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.02) 3px,rgba(255,255,255,0.02) 4px);pointer-events:none;z-index:9999;}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='46'%3E%3Cpath d='M20 2L38 12L38 34L20 44L2 34L2 12Z' fill='none' stroke='%2335405a' stroke-width='1'/%3E%3C/svg%3E");pointer-events:none;opacity:0.35;}
+
+/* HEADER */
+header{text-align:center;padding:24px 16px 14px;border-bottom:1px solid var(--border);position:relative;}
+.logo{font-family:'Orbitron',sans-serif;font-size:clamp(18px,4vw,40px);font-weight:900;letter-spacing:6px;color:var(--gold);text-shadow:0 0 20px rgba(232,160,32,0.5),0 0 60px rgba(232,160,32,0.2);}
+.logo span{color:var(--green);text-shadow:0 0 20px rgba(76,255,106,0.5);}
+.subtitle{font-size:11px;letter-spacing:4px;color:var(--dim);margin-top:5px;}
+.header-line{height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:12px auto 0;max-width:500px;}
+
+/* AUTH BADGE in header */
+.auth-badge{
+  position:absolute;top:18px;right:18px;
+  display:flex;align-items:center;gap:8px;
+  padding:7px 13px;
+  background:rgba(26,32,46,0.85);
+  border:1px solid var(--border);
+  cursor:pointer;font-family:'Orbitron',sans-serif;
+  font-size:10px;letter-spacing:2px;
+  transition:all .15s;font-weight:700;
+  color:var(--dim);
+}
+.auth-badge:hover{border-color:var(--gold);color:var(--gold);}
+.auth-badge.admin{border-color:var(--gold);color:var(--gold);background:rgba(245,185,66,0.12);box-shadow:0 0 14px rgba(245,185,66,0.2);}
+.auth-badge .auth-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--dim);box-shadow:0 0 6px currentColor;
+}
+.auth-badge.admin .auth-dot{background:var(--gold);}
+
+/* SYNC BADGE — đặt ngay dưới auth badge */
+.sync-badge{
+  position:absolute; top:56px; right:18px;
+  display:flex; align-items:center; gap:6px;
+  padding:5px 10px;
+  background:rgba(26,32,46,0.85);
+  border:1px solid var(--border);
+  font-family:'Orbitron',sans-serif;
+  font-size:9px; letter-spacing:2px;
+  font-weight:700; color:var(--dim);
+  transition:all .3s;
+  user-select:none;
+  cursor:pointer;
+}
+.sync-badge:hover{ filter:brightness(1.15); }
+.sync-badge:active{ transform:scale(0.93); }
+.sync-badge .sync-dot{
+  width:7px; height:7px; border-radius:50%;
+  background:var(--dim);
+  box-shadow:0 0 6px currentColor;
+  transition:all .3s;
+}
+.sync-badge.synced{ border-color:var(--green); color:#9fffbb;}
+.sync-badge.synced .sync-dot{ background:var(--green); animation:pulse 2s infinite;}
+.sync-badge.saving{ border-color:var(--gold); color:var(--gold);}
+.sync-badge.saving .sync-dot{ background:var(--gold); animation:pulse-fast 0.6s infinite;}
+.sync-badge.offline{ border-color:var(--red); color:#ffaaaa;}
+.sync-badge.offline .sync-dot{ background:var(--red);}
+@keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+@keyframes pulse-fast{ 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+/* TABS */
+.tabs{
+  display:flex;border-bottom:1px solid var(--border);background:var(--panel2);
+  overflow-x:auto;overflow-y:hidden;
+  scrollbar-width:none; -ms-overflow-style:none;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;
+}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{
+  flex:1;min-width:max-content;
+  padding:14px 16px;text-align:center;cursor:pointer;
+  font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;color:var(--text);
+  border-bottom:3px solid transparent;transition:all .2s;text-transform:uppercase;font-weight:700;
+  white-space:nowrap;scroll-snap-align:start;
+  user-select:none;
+}
+.tab:hover{background:#363e54;}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);background:#1f2435;}
+.tab.tab-hidden{display:none;}
+
+/* PAGES */
+.page{display:none;padding:20px;max-width:1100px;margin:0 auto;}
+.page.active{display:block;}
+
+.section-title{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;color:var(--gold);margin-bottom:14px;text-transform:uppercase;display:flex;align-items:center;gap:10px;}
+.section-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--gold-dim),transparent);}
+
+.step-card{background:var(--panel);border:1px solid var(--border);margin-bottom:18px;position:relative;}
+.step-header{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.step-num{width:32px;height:32px;background:var(--gold-dim);color:var(--gold);font-family:'Orbitron',sans-serif;font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);flex-shrink:0;}
+.step-title{font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;flex:1;}
+.step-title.a{color:var(--blue);} .step-title.b{color:var(--orange);} .step-title.r{color:var(--gold);}
+.step-counter{font-size:12px;color:var(--text);letter-spacing:1px;font-weight:700;}
+.step-counter b{color:var(--gold);font-family:'Orbitron',sans-serif;font-size:14px;}
+.step-body{padding:16px 18px;}
+
+/* ROSTER */
+.roster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;}
+.pbtn{font-size:12px;padding:11px 11px;background:#1a2030;border:1px solid var(--border);color:var(--text);cursor:pointer;font-family:'Share Tech Mono',monospace;letter-spacing:0.5px;transition:all .15s;display:flex;align-items:center;gap:6px;text-align:left;min-height:44px;}
+.pbtn:hover{border-color:var(--gold);background:#252e44;}
+.tier-mini{width:18px;height:18px;display:flex;align-items:center;justify-content:center;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);font-size:9px;font-weight:700;flex-shrink:0;}
+.pbtn.sel-a{border-color:var(--blue);color:#fff;background:rgba(92,180,255,0.25);box-shadow:0 0 8px rgba(92,180,255,0.3);}
+.pbtn.sel-b{border-color:var(--orange);color:#fff;background:rgba(255,153,102,0.25);box-shadow:0 0 8px rgba(255,153,102,0.3);}
+.pbtn.disabled{opacity:0.35;cursor:not-allowed;}
+
+/* SIDE CONFIG */
+.round-panel{margin-bottom:18px;}
+.side-config{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 14px;
+  background:#1a2030; border:1px solid var(--border);
+  margin-bottom:14px;
+  flex-wrap:wrap;
+}
+.side-label{font-size:11px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;}
+.side-toggle{display:flex;gap:6px;}
+.side-btn{
+  font-size:12px;padding:9px 16px;background:#1a2030;
+  border:1px solid var(--border);color:var(--text);
+  cursor:pointer;font-family:'Share Tech Mono',monospace;
+  letter-spacing:1px;transition:all .15s;
+  min-height:40px;
+}
+.side-btn:hover{border-color:var(--gold);}
+.side-btn.active{background:rgba(92,180,255,0.25);border-color:var(--ct);color:#fff;}
+.side-btn.t.active{background:rgba(255,153,102,0.25);border-color:var(--t);color:#fff;}
+.side-display{
+  display:inline-block;font-size:11px;padding:3px 10px;
+  letter-spacing:2px;font-family:'Orbitron',sans-serif;font-weight:700;
+}
+.side-display.ct{background:rgba(92,180,255,0.2);color:#fff;border:1px solid var(--ct);}
+.side-display.t{background:rgba(255,153,102,0.2);color:#fff;border:1px solid var(--t);}
+
+/* WINNER BUTTONS */
+.winner-row{display:flex;gap:10px;margin-bottom:14px;}
+.winner-btn{flex:1;padding:14px;background:#1a2030;border:2px solid var(--border);color:var(--text);font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;text-transform:uppercase;transition:all .2s;text-align:center;min-height:48px;}
+.winner-btn:hover{background:#252e44;border-color:var(--gold);}
+.winner-btn.sel-a{border-color:var(--blue);color:#fff;background:rgba(92,180,255,0.3);box-shadow:0 0 12px rgba(92,180,255,0.4);}
+.winner-btn.sel-b{border-color:var(--orange);color:#fff;background:rgba(255,153,102,0.3);box-shadow:0 0 12px rgba(255,153,102,0.4);}
+.winner-btn.loser{opacity:0.4;}
+
+/* STATS */
+.stats-input-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.stats-team-panel{background:#1a2030;border:1px solid var(--border);padding:14px;}
+.stats-team-title{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;color:var(--text);}
+.stats-team-title.a span:first-child{color:var(--blue);}
+.stats-team-title.b span:first-child{color:var(--orange);}
+.outcome-tag{font-size:10px;padding:3px 10px;letter-spacing:2px;font-weight:700;}
+.outcome-win{background:rgba(61,220,110,0.2);color:#9fffbb;border:1px solid var(--green);}
+.outcome-lose{background:rgba(255,85,85,0.2);color:#ffaaaa;border:1px solid var(--red);}
+
+.col-label-row{display:grid;grid-template-columns:1fr 60px 50px;gap:6px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+.col-label{font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;text-align:center;font-weight:700;}
+.player-input-row{display:grid;grid-template-columns:1fr 60px 50px;gap:6px;align-items:center;padding:6px 0;font-size:12px;}
+.player-input-row+.player-input-row{border-top:1px solid var(--border);}
+.player-input-row input[type=number]{width:100%;padding:8px 6px;font-size:13px;background:#252b3d;border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;outline:none;text-align:center;font-weight:700;min-height:38px;}
+.player-input-row input[type=number]:focus{border-color:var(--gold);background:#2d3447;}
+.pname-cell{font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;overflow:hidden;}
+.pname-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.topkill-cb{
+  width:26px;height:26px;
+  accent-color:var(--gold);
+  cursor:pointer;margin:auto;display:block;
+  filter: drop-shadow(0 0 4px rgba(245,185,66,0.3));
+}
+.topkill-cb:checked{
+  filter: drop-shadow(0 0 8px rgba(245,185,66,0.8));
+}
+.topkill-label{
+  display:inline-block;
+  font-size:14px;
+  text-shadow: 0 0 6px rgba(245,185,66,0.5);
+}
+
+/* DATE */
+.date-field{display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap;}
+.date-field label{font-size:10px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;white-space:nowrap;}
+.date-field input{flex:1;min-width:200px;max-width:280px;background:#1a2030;border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:11px 12px;outline:none;min-height:44px;}
+.date-field input:focus{border-color:var(--gold);}
+
+/* SUMMARY */
+.summary-card{background:linear-gradient(135deg,#252b3d,#1f2435);border:1px solid var(--gold);padding:18px;margin-bottom:14px;}
+.summary-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:12px;letter-spacing:1px;border-bottom:1px solid rgba(245,185,66,0.2);color:var(--text);}
+.summary-row:last-child{border-bottom:none;}
+.summary-row b{color:var(--gold);font-family:'Orbitron',sans-serif;font-size:14px;}
+.match-final{font-family:'Orbitron',sans-serif;font-size:16px;text-align:center;padding:12px;margin-top:8px;letter-spacing:3px;font-weight:700;}
+
+.submit-btn{width:100%;padding:18px;background:linear-gradient(135deg,#2d6a3a,#1f4b28);border:1px solid var(--green);color:#fff;font-family:'Orbitron',sans-serif;font-size:14px;letter-spacing:3px;cursor:pointer;text-transform:uppercase;transition:all .2s;margin-top:8px;font-weight:700;min-height:52px;}
+.submit-btn:hover{background:linear-gradient(135deg,#3a8a4d,#2a6536);box-shadow:0 0 24px rgba(61,220,110,0.3);}
+.submit-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+.step-card.locked{opacity:0.45;pointer-events:none;}
+.step-card.locked::after{content:'🔒 Hoàn tất bước trước';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text);font-size:12px;letter-spacing:2px;background:rgba(26,31,46,0.6);font-weight:700;}
+
+/* LEADERBOARD */
+.lb-header{display:grid;grid-template-columns:36px 28px 1fr 80px 60px 60px 60px 100px;gap:8px;padding:8px 14px;font-size:10px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;font-weight:700;}
+.player-card{display:grid;grid-template-columns:36px 28px 1fr 80px 60px 60px 60px 100px;align-items:center;gap:8px;padding:11px 14px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--border);transition:all .15s;margin-bottom:4px;}
+.player-card:hover{background:#2d3447;border-left-color:var(--gold);}
+.player-card.rank-1{border-left-color:#ffd700;background:#3a3520;}
+.player-card.rank-2{border-left-color:#c0c0c0;background:#2d3140;}
+.player-card.rank-3{border-left-color:#cd7f32;background:#36281c;}
+.rank-num{font-family:'Orbitron',sans-serif;font-size:14px;font-weight:700;text-align:center;color:var(--text);}
+.rank-1 .rank-num{color:#ffd700;} .rank-2 .rank-num{color:#e0e0e0;} .rank-3 .rank-num{color:#e29a52;}
+.tier-hex{width:28px;height:28px;display:flex;align-items:center;justify-content:center;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);font-size:12px;font-weight:700;flex-shrink:0;}
+.t1{background:#7c3aed;color:#fff;} .t2{background:#0d9488;color:#fff;} .t3{background:#d97706;color:#fff;} .t4{background:#dc2626;color:#fff;}
+.t-empty{background:rgba(160,170,192,0.15);color:var(--dim);font-weight:400;}
+.player-name{font-size:13px;color:var(--text);letter-spacing:1px;}
+.tanker-tag{display:inline-block;font-size:9px;padding:2px 6px;border:1px solid var(--red);color:#ffaaaa;margin-left:6px;vertical-align:middle;background:rgba(255,85,85,0.15);font-weight:700;}
+.stat-cell{text-align:center;font-size:13px;color:var(--text);}
+.stat-cell.pts{color:var(--gold);font-family:'Orbitron',sans-serif;font-size:14px;font-weight:700;}
+.stat-cell.wins{color:#9fffbb;font-weight:700;} .stat-cell.losses{color:#ffaaaa;font-weight:700;}
+.badge{text-align:center;font-size:9px;letter-spacing:1px;padding:4px 7px;border:1px solid;text-transform:uppercase;display:inline-block;font-weight:700;}
+.badge-ge{border-color:#ffd700;color:#ffe066;background:rgba(255,215,0,0.15);}
+.badge-sup{border-color:#d8d8d8;color:#f0f0f0;background:rgba(216,216,216,0.15);}
+.badge-eag{border-color:#5cb4ff;color:#9fd0ff;background:rgba(92,180,255,0.15);}
+.badge-roo{border-color:#3ddc6e;color:#9fffbb;background:rgba(61,220,110,0.15);}
+.badge-rec{border-color:#a0aac0;color:#c0c8d8;background:rgba(160,170,192,0.12);}
+.tier-changed{font-size:10px;margin-left:4px;font-weight:900;}
+.tier-up{color:#3ddc6e;} .tier-down{color:#ff5555;}
+
+/* HISTORY */
+.history-card{background:var(--panel);border:1px solid var(--border);padding:14px 16px;margin-bottom:8px;font-size:12px;}
+.history-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:var(--dim);font-size:11px;letter-spacing:1px;font-weight:700;gap:8px;flex-wrap:wrap;}
+.history-header-left{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.history-header-right{display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;}
+.winner-label{color:var(--gold);font-family:'Orbitron',sans-serif;font-size:12px;}
+.score-pill{display:inline-block;padding:3px 9px;font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;border:1px solid var(--gold);color:var(--gold);margin-left:6px;background:rgba(245,185,66,0.1);font-weight:700;}
+
+/* MATCH ACTION BUTTONS */
+.match-action-btn{
+  font-size:10px;padding:6px 11px;
+  background:#1a2030;border:1px solid var(--border);
+  color:var(--text);cursor:pointer;
+  font-family:'Share Tech Mono',monospace;
+  letter-spacing:1px;
+  transition:all .15s;font-weight:700;
+  min-height:32px;
+  white-space:nowrap;
+}
+.match-action-btn.view{border-color:var(--ct);color:var(--ct);}
+.match-action-btn.view:hover{background:rgba(92,180,255,0.15);color:#fff;box-shadow:0 0 8px rgba(92,180,255,0.3);}
+.match-action-btn.edit:hover{border-color:var(--gold);color:var(--gold);background:rgba(245,185,66,0.1);}
+.match-action-btn.delete:hover{border-color:var(--red);color:var(--red);background:rgba(255,85,85,0.1);}
+
+/* EDIT BANNER */
+.edit-banner{
+  background:linear-gradient(135deg,#3a2810,#2a1f08);
+  border:1px solid var(--gold);
+  padding:14px 18px;margin-bottom:18px;
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:10px;
+}
+.edit-banner-text{
+  color:var(--gold);font-family:'Orbitron',sans-serif;
+  font-size:13px;letter-spacing:2px;font-weight:700;
+}
+.cancel-edit-btn{
+  background:#5a2020;border:1px solid var(--red);
+  color:#fff;font-family:'Orbitron',sans-serif;
+  font-size:11px;letter-spacing:2px;
+  padding:9px 16px;cursor:pointer;font-weight:700;
+  min-height:40px;
+}
+.cancel-edit-btn:hover{background:#7a2a2a;}
+
+/* TEAM SPLIT */
+.pbtn.sel-ts{border-color:var(--green);color:#fff;background:rgba(61,220,110,0.18);box-shadow:0 0 10px rgba(61,220,110,0.3);}
+.pbtn-pts{margin-left:auto;font-size:10px;color:var(--gold);font-family:'Orbitron',monospace;font-weight:700;padding-left:6px;}
+.ts-stats-bar{
+  display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;
+  padding:8px 10px;background:#1a2030;border:1px solid var(--border);
+}
+.ts-stat-item{font-size:11px;letter-spacing:1px;color:var(--text);}
+.ts-stat-item b{color:var(--gold);font-family:'Orbitron',monospace;}
+.ts-player-row{
+  display:grid;grid-template-columns:24px 1fr auto;gap:10px;
+  align-items:center;padding:7px 0;font-size:12px;
+}
+.ts-player-row+.ts-player-row{border-top:1px solid var(--border);}
+.ts-player-row .pts{color:var(--gold);font-family:'Orbitron',monospace;font-weight:700;font-size:12px;}
+.balance-meter{
+  margin-top:14px;padding:10px 14px;
+  background:#1a2030;border:1px solid var(--gold);
+  text-align:center;font-size:12px;color:var(--text);
+}
+.balance-meter b{color:var(--gold);font-family:'Orbitron',monospace;}
+
+/* ADD PLAYER FORM */
+.add-player-form{
+  display:grid;
+  grid-template-columns:2fr 130px 90px auto;
+  gap:12px;
+  align-items:end;
+  background:var(--panel);
+  border:1px solid var(--border);
+  padding:16px;
+  margin-bottom:18px;
+}
+.add-player-form .field label{
+  display:block;font-size:10px;letter-spacing:1px;
+  color:var(--dim);text-transform:uppercase;
+  margin-bottom:5px;font-weight:700;
+}
+.add-player-form input[type=text],
+.add-player-form select{
+  width:100%;background:#1a2030;border:1px solid var(--border);
+  color:var(--text);font-family:'Share Tech Mono',monospace;
+  font-size:13px;padding:11px;outline:none;min-height:42px;
+}
+.add-player-form input[type=text]:focus,
+.add-player-form select:focus{border-color:var(--gold);}
+.add-player-form .tanker-check{
+  display:flex;align-items:center;justify-content:center;
+  height:42px;background:#1a2030;border:1px solid var(--border);
+}
+.add-player-form .tanker-check input{
+  width:22px;height:22px;accent-color:var(--red);cursor:pointer;
+}
+.add-player-form button{height:42px;padding:0 18px;white-space:nowrap;}
+
+/* MANAGE ROWS */
+.manage-row{
+  display:grid;
+  grid-template-columns:32px 84px 1fr 86px 90px 60px 36px;
+  align-items:center;
+  gap:8px;
+  padding:10px 14px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  margin-bottom:4px;
+}
+.manage-row .stt{font-family:'Orbitron',sans-serif;font-size:13px;color:var(--dim);text-align:center;font-weight:700;}
+.manage-row .name-input{
+  width:100%;background:transparent;border:1px solid transparent;
+  color:var(--text);font-family:'Share Tech Mono',monospace;
+  font-size:13px;padding:7px 8px;outline:none;letter-spacing:1px;
+  transition:all .15s;
+}
+.manage-row .name-input:hover{border-color:rgba(245,185,66,0.3);background:rgba(245,185,66,0.05);}
+.manage-row .name-input:focus{border-color:var(--gold);background:#1a2030;}
+.manage-row input[type=number]{
+  width:100%;background:#1a2030;border:1px solid var(--border);
+  color:var(--text);font-family:'Share Tech Mono',monospace;
+  font-size:14px;padding:9px 10px;outline:none;text-align:center;font-weight:700;
+  min-height:38px;
+}
+.manage-row input[type=number]:focus{border-color:var(--gold);}
+.manage-row select.tier-select{
+  width:100%;background:#1a2030;border:1px solid var(--border);
+  color:var(--text);font-family:'Share Tech Mono',monospace;
+  font-size:12px;padding:9px 8px;outline:none;text-align:center;font-weight:700;
+  cursor:pointer;min-height:38px;
+}
+.manage-row select.tier-select:focus{border-color:var(--gold);}
+.manage-row select.tier-select option{background:#1a2030;}
+.manage-row .tanker-toggle{
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.manage-row .tanker-toggle input{width:20px;height:20px;accent-color:var(--red);cursor:pointer;}
+.manage-row .tanker-toggle label{font-size:10px;color:var(--dim);margin-left:4px;letter-spacing:1px;}
+.manage-row .del-btn{
+  width:34px;height:34px;background:#1a0808;border:1px solid var(--red);
+  color:var(--red);cursor:pointer;font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.manage-row .del-btn:hover{background:#3a1010;color:#fff;}
+.manage-header{
+  display:grid;grid-template-columns:32px 84px 1fr 86px 90px 60px 36px;
+  gap:8px;padding:6px 14px;
+  font-size:10px;letter-spacing:2px;color:var(--dim);
+  text-transform:uppercase;font-weight:700;
+}
+
+/* DELETE PLAYER */
+.manage-row .delete-player-btn{
+  background:#2a1010;border:1px solid var(--red);
+  color:#ffaaaa;font-family:'Share Tech Mono',monospace;
+  font-size:11px;letter-spacing:1px;padding:6px 10px;
+  cursor:pointer;transition:all .15s;
+}
+.manage-row .delete-player-btn:hover{background:#4a1818;color:#fff;}
+
+/* SCORING */
+.scoring-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:20px;}
+.score-item{background:var(--panel);border:1px solid var(--border);padding:12px 14px;}
+.score-item .val{color:var(--gold);font-size:16px;font-family:'Orbitron',sans-serif;font-weight:700;}
+.score-item .lbl{color:var(--text);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-top:4px;}
+.tier-info-box{background:var(--panel);border:1px solid var(--border);padding:18px;margin-bottom:20px;font-size:12px;line-height:1.9;color:var(--text);}
+.tier-info-box b{color:var(--gold);}
+
+.empty-state{text-align:center;color:var(--dim);padding:36px;font-size:12px;letter-spacing:2px;}
+.toast{position:fixed;bottom:30px;right:30px;background:#2d5a3a;border:1px solid var(--green);color:#fff;padding:14px 22px;font-size:13px;letter-spacing:2px;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;z-index:10000;font-weight:700;max-width:calc(100vw - 40px);box-sizing:border-box;}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.err{background:#5a2d2d;border-color:var(--red);color:#fff;}
+::-webkit-scrollbar{width:6px;} ::-webkit-scrollbar-track{background:#1a2030;} ::-webkit-scrollbar-thumb{background:var(--border);}
+
+.danger-btn{width:100%;max-width:280px;padding:14px;background:#5a2020;border:1px solid var(--red);color:#fff;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer;text-transform:uppercase;transition:all .2s;font-weight:700;min-height:48px;}
+.danger-btn:hover{background:#7a2a2a;box-shadow:0 0 16px rgba(255,85,85,0.3);}
+
+.action-btn{
+  display:inline-block;padding:11px 24px;
+  background:#1a2030;border:1px solid var(--gold);
+  color:var(--gold);font-family:'Orbitron',sans-serif;
+  font-size:12px;letter-spacing:2px;cursor:pointer;
+  text-transform:uppercase;transition:all .2s;font-weight:700;
+  min-height:44px;
+}
+.action-btn:hover{background:rgba(245,185,66,0.15);box-shadow:0 0 14px rgba(245,185,66,0.3);}
+.action-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.export-section{margin-top:16px;padding-top:14px;border-top:1px dashed var(--border);text-align:center;}
+.export-hint{font-size:11px;color:var(--dim);margin-bottom:10px;letter-spacing:1px;}
+
+/* ── MODAL (Match Detail) ─────────────────────────────────────────────── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.78);
+  z-index:10001;display:none;align-items:flex-start;justify-content:center;
+  padding:20px;overflow-y:auto;
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+}
+.modal-overlay.show{display:flex;}
+.modal-box{
+  background:var(--bg);border:1px solid var(--gold);
+  max-width:900px;width:100%;margin:auto;
+  box-shadow:0 0 60px rgba(245,185,66,0.15);
+  position:relative;
+}
+.modal-header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:16px 20px;border-bottom:1px solid var(--border);
+  background:var(--panel2);gap:10px;flex-wrap:wrap;
+}
+.modal-title{
+  font-family:'Orbitron',sans-serif;font-size:14px;letter-spacing:2px;
+  color:var(--gold);font-weight:700;text-transform:uppercase;
+}
+.modal-close{
+  background:#1a2030;border:1px solid var(--border);color:var(--text);
+  font-size:16px;width:36px;height:36px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Orbitron',sans-serif;font-weight:700;
+  transition:all .15s;
+}
+.modal-close:hover{border-color:var(--red);color:var(--red);background:#2a1010;}
+.modal-body{padding:20px;}
+
+.md-result-banner{
+  text-align:center;padding:16px;margin-bottom:18px;
+  font-family:'Orbitron',sans-serif;font-size:18px;font-weight:900;
+  letter-spacing:3px;border:1px solid var(--gold);
+  background:linear-gradient(135deg,#252b3d,#1f2435);
+}
+
+.md-meta-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:10px;margin-bottom:18px;
+}
+.md-meta-item{
+  background:var(--panel);border:1px solid var(--border);
+  padding:10px 12px;
+}
+.md-meta-item .lbl{font-size:10px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;font-weight:700;}
+.md-meta-item .val{font-family:'Orbitron',monospace;color:var(--gold);font-size:14px;font-weight:700;margin-top:3px;}
+
+.md-team-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;
+}
+.md-team-panel{
+  background:var(--panel);border:1px solid var(--border);padding:14px;
+}
+.md-team-title{
+  font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:2px;
+  margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);
+  text-transform:uppercase;display:flex;justify-content:space-between;
+  align-items:center;gap:8px;flex-wrap:wrap;
+}
+.md-team-title.a{color:var(--blue);}
+.md-team-title.b{color:var(--orange);}
+
+.md-player-row{
+  display:grid;grid-template-columns:22px 1fr 36px 36px 54px 50px;gap:6px;
+  align-items:center;padding:8px 4px;font-size:12px;
+  border-bottom:1px solid rgba(160,170,192,0.1);
+}
+.md-player-row:last-child{border-bottom:none;}
+.md-player-row .nm{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px;}
+.md-player-row .k{text-align:center;color:var(--text);font-family:'Share Tech Mono',monospace;font-weight:700;}
+.md-player-row .tk{text-align:center;font-size:13px;}
+.md-player-row .elo{text-align:right;font-family:'Share Tech Mono',monospace;font-weight:700;font-size:12px;}
+.md-player-row .elo.up{color:#4cff6a;}
+.md-player-row .elo.down{color:#ff5a5a;}
+.md-player-row .elo.flat{color:var(--dim);}
+.md-player-row .pts{text-align:right;color:var(--gold);font-family:'Orbitron',monospace;font-weight:700;font-size:13px;}
+.md-col-header{
+  display:grid;grid-template-columns:22px 1fr 36px 36px 54px 50px;gap:6px;
+  font-size:9px;letter-spacing:1px;color:var(--dim);
+  text-transform:uppercase;font-weight:700;
+  padding:0 4px 6px;border-bottom:1px solid var(--border);margin-bottom:4px;
+}
+.md-col-header > div:nth-child(3),
+.md-col-header > div:nth-child(4){text-align:center;}
+.md-col-header > div:nth-child(5){text-align:right;}
+.md-col-header > div:last-child{text-align:right;}
+
+.md-rounds-box{
+  background:#1a2030;border:1px solid var(--border);
+  padding:12px;margin-bottom:14px;font-size:12px;
+}
+.md-round-line{padding:6px 0;color:var(--text);}
+.md-round-line+.md-round-line{border-top:1px dashed var(--border);}
+.md-round-line b{color:var(--gold);font-family:'Orbitron',monospace;}
+
+/* ── LOGIN MODAL ───────────────────────────────────────────────────── */
+.login-form{
+  display:flex;flex-direction:column;gap:14px;
+  max-width:380px;margin:0 auto;
+}
+.login-form label{
+  font-size:11px;letter-spacing:2px;color:var(--dim);
+  text-transform:uppercase;font-weight:700;
+}
+.login-form input{
+  width:100%;background:#1a2030;border:1px solid var(--border);
+  color:var(--text);font-family:'Share Tech Mono',monospace;
+  font-size:14px;padding:12px 14px;outline:none;letter-spacing:2px;
+  min-height:44px;
+}
+.login-form input:focus{border-color:var(--gold);background:#252e44;}
+.login-hint{
+  font-size:11px;color:var(--dim);letter-spacing:1px;
+  padding:10px 12px;background:#1a2030;border-left:2px solid var(--gold);
+}
+
+/* ── MOBILE RESPONSIVE ──────────────────────────────────────────────── */
+@media (max-width: 780px) {
+  .stats-input-grid{grid-template-columns:1fr;}
+  .md-team-grid{grid-template-columns:1fr;}
+}
+
+@media (max-width: 700px) {
+  .add-player-form{grid-template-columns:1fr;}
+}
+
+@media (max-width: 640px) {
+  header{padding:18px 12px 12px;}
+  .logo{font-size:20px;letter-spacing:4px;}
+  .subtitle{font-size:9px;letter-spacing:2px;}
+  .auth-badge{top:12px;right:12px;padding:6px 10px;font-size:9px;letter-spacing:1px;}
+  .sync-badge{top:46px;right:12px;padding:4px 8px;font-size:8px;letter-spacing:1px;}
+
+  .page{padding:14px 12px;}
+  .section-title{font-size:11px;letter-spacing:2px;}
+
+  .tab{padding:13px 14px;font-size:10px;letter-spacing:0.5px;}
+
+  /* LEADERBOARD: stack into 2 lines on mobile */
+  .lb-header{display:none;}
+  .player-card{
+    grid-template-columns:34px 28px 1fr auto;
+    grid-template-rows:auto auto;
+    grid-template-areas:
+      "rank tier name pts"
+      "rank tier stats badge";
+    padding:10px 12px;gap:6px 8px;
+  }
+  .player-card .rank-num{grid-area:rank;}
+  .player-card .tier-hex{grid-area:tier;}
+  .player-card .player-name{grid-area:name;font-size:13px;line-height:1.3;}
+  .player-card > .stat-cell:nth-child(4){
+    /* PTS */
+    grid-area:pts;text-align:right;
+  }
+  .player-card .stats-line{
+    grid-area:stats;
+    display:flex;gap:10px;font-size:11px;color:var(--dim);
+    letter-spacing:0;align-items:center;
+  }
+  .player-card .stats-line span b{color:var(--text);}
+  .player-card .stats-line .w{color:#9fffbb;}
+  .player-card .stats-line .l{color:#ffaaaa;}
+  .player-card .badge-cell{grid-area:badge;text-align:right;}
+  /* hide the original separate stat cells when on mobile (we use .stats-line) */
+  .player-card > .stat-cell.matches-mobile-hide,
+  .player-card > .stat-cell.wins-mobile-hide,
+  .player-card > .stat-cell.losses-mobile-hide{display:none;}
+
+  /* STEP CARD */
+  .step-header{padding:11px 13px;gap:10px;}
+  .step-num{width:28px;height:28px;font-size:12px;}
+  .step-title{font-size:12px;letter-spacing:1px;}
+  .step-counter{font-size:11px;width:100%;}
+  .step-body{padding:13px 13px;}
+
+  .roster-grid{grid-template-columns:repeat(2,1fr);gap:5px;}
+  .pbtn{font-size:11px;padding:11px 9px;}
+
+  .side-config{padding:9px 11px;gap:8px;}
+  .winner-btn{padding:13px 8px;font-size:11px;letter-spacing:1px;}
+
+  /* STATS PANEL */
+  .stats-team-panel{padding:11px;}
+  .col-label-row, .player-input-row{grid-template-columns:1fr 52px 44px;gap:5px;}
+  .col-label{font-size:9px;letter-spacing:0.5px;}
+  .pname-text{font-size:11px;}
+
+  /* SUMMARY */
+  .summary-card{padding:14px;}
+  .summary-row{font-size:11px;}
+  .match-final{font-size:14px;letter-spacing:2px;padding:10px;}
+
+  /* HISTORY */
+  .history-card{padding:12px 12px;}
+  .history-header{font-size:10px;}
+  .winner-label{font-size:11px;letter-spacing:1px;}
+  .match-action-btn{padding:7px 9px;font-size:10px;min-height:34px;}
+
+  /* MANAGE */
+  .manage-header{display:none;}
+  .manage-row{
+    grid-template-columns:32px 1fr 38px;
+    grid-template-rows:auto auto;
+    grid-template-areas:
+      "stt name del"
+      "tier pts tank";
+    gap:8px;padding:11px 12px;
+  }
+  .manage-row .stt{grid-area:stt;}
+  .manage-row .name-input{grid-area:name;font-size:13px;}
+  .manage-row .tier-select{grid-area:tier;font-size:11px;padding:8px 6px;}
+  .manage-row input[type=number]{grid-area:pts;}
+  .manage-row .tanker-toggle{grid-area:tank;border:1px solid var(--border);background:#1a2030;height:38px;}
+  .manage-row .del-btn{grid-area:del;width:36px;height:36px;}
+
+  /* MODAL */
+  .modal-overlay{padding:0;}
+  .modal-box{margin:0;min-height:100vh;}
+  .modal-header{padding:13px 14px;}
+  .modal-title{font-size:12px;letter-spacing:1px;}
+  .modal-body{padding:14px;}
+  .md-result-banner{font-size:14px;letter-spacing:2px;padding:13px;}
+  .md-meta-grid{grid-template-columns:repeat(2,1fr);gap:8px;}
+  .md-meta-item{padding:8px 10px;}
+  .md-team-panel{padding:11px;}
+  .md-team-title{font-size:11px;letter-spacing:1px;}
+  .md-player-row{grid-template-columns:20px 1fr 28px 28px 44px 42px;gap:3px;padding:7px 3px;font-size:11px;}
+  .md-col-header{grid-template-columns:20px 1fr 28px 28px 44px 42px;gap:3px;font-size:8px;}
+
+  /* SCORING */
+  .scoring-grid{grid-template-columns:1fr 1fr;gap:8px;}
+  .score-item{padding:10px 11px;}
+  .score-item .val{font-size:14px;}
+  .score-item .lbl{font-size:9px;}
+
+  /* TOAST */
+  .toast{bottom:18px;right:18px;left:18px;padding:12px 16px;font-size:12px;letter-spacing:1px;text-align:center;}
+
+  /* EDIT BANNER */
+  .edit-banner{padding:11px 13px;}
+  .edit-banner-text{font-size:11px;letter-spacing:1px;}
+
+  /* TIER INFO */
+  .tier-info-box{padding:14px;font-size:11px;line-height:1.8;}
+}
+
+@media (max-width: 420px) {
+  .logo{font-size:18px;letter-spacing:3px;}
+  .tab{padding:12px 10px;font-size:9px;}
+  .roster-grid{grid-template-columns:1fr 1fr;}
+  .col-label-row, .player-input-row{grid-template-columns:1fr 46px 38px;}
+  .scoring-grid{grid-template-columns:1fr;}
+
+  .player-card .stats-line{font-size:10px;gap:8px;}
+  .player-card .stat-cell.pts{font-size:13px;}
+  .player-card .player-name{font-size:12px;}
+
+  .auth-badge{padding:5px 8px;font-size:8px;}
+  .auth-badge .auth-dot{width:6px;height:6px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">CS<span>1.6</span> — RANKING SYSTEM</div>
+  <div class="subtitle">INDIVIDUAL PERFORMANCE TRACKER // SQUAD LEAGUE · <span style="color:#4cff6a;">V2 ELO</span></div>
+  <div class="header-line"></div>
+  <div class="auth-badge" id="auth-badge" onclick="handleAuthClick()">
+    <span class="auth-dot"></span>
+    <span id="auth-label">PLAYER</span>
+  </div>
+  <div class="sync-badge" id="sync-badge" title="Click để kết nối lại Firebase" onclick="reconnectFirebase()">
+    <span class="sync-dot"></span>
+    <span id="sync-label">CONNECTING</span>
+  </div>
+</header>
+
+<div class="tabs" id="tabs-bar">
+  <div class="tab active" data-tab="leaderboard" data-role="all" onclick="switchTab('leaderboard')">🏆 Xếp Hạng</div>
+  <div class="tab" data-tab="log"         data-role="admin" onclick="switchTab('log')">➕ Nhập Trận</div>
+  <div class="tab" data-tab="teamsplit"   data-role="admin" onclick="switchTab('teamsplit')">🎲 Chia Team</div>
+  <div class="tab" data-tab="history"     data-role="all"   onclick="switchTab('history')">📋 Lịch Sử</div>
+  <div class="tab" data-tab="manage"      data-role="admin" onclick="switchTab('manage')">👥 Quản Lý</div>
+  <div class="tab" data-tab="scoring"     data-role="all"   onclick="switchTab('scoring')">⚙️ Hệ Thống</div>
+</div>
+
+<!-- LEADERBOARD -->
+<div id="page-leaderboard" class="page active">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+    <div class="section-title" style="margin-bottom:0;flex:1;min-width:200px;">BẢNG XẾP HẠNG</div>
+    <button class="action-btn" onclick="exportLeaderboardPNG()">📸 XUẤT ẢNH</button>
+  </div>
+  <div class="lb-header">
+    <div>#</div><div>TIER</div><div>TÊN</div>
+    <div style="text-align:center">ĐIỂM</div>
+    <div style="text-align:center">TRẬN</div>
+    <div style="text-align:center">THẮNG</div>
+    <div style="text-align:center">THUA</div>
+    <div style="text-align:center">HẠNG</div>
+  </div>
+  <div id="leaderboard"></div>
+</div>
+
+<!-- LOG MATCH -->
+<div id="page-log" class="page">
+  <div class="section-title">NHẬP KẾT QUẢ TRẬN ĐẤU</div>
+
+  <div class="edit-banner" id="edit-banner" style="display:none;">
+    <div class="edit-banner-text" id="edit-banner-text">✏️ Đang sửa trận #—</div>
+    <button class="cancel-edit-btn" onclick="cancelEdit()">✗ HỦY SỬA</button>
+  </div>
+
+  <div class="date-field">
+    <label>📅 NGÀY THI ĐẤU:</label>
+    <input type="text" id="match-date" placeholder="VD: 13/05/2026" oninput="saveDraft()">
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step-card" id="step-1">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div class="step-title a">🔵 Chọn đội hình Team A</div>
+      <div class="step-counter"><b id="count-a">0</b> người · Điểm TB: <b id="avg-pts-a">—</b> · Tier TB: <b id="avg-tier-a">—</b></div>
+    </div>
+    <div class="step-body">
+      <div class="roster-grid" id="roster-a"></div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step-card" id="step-2">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div class="step-title b">🔴 Chọn đội hình Team B</div>
+      <div class="step-counter"><b id="count-b">0</b> người · Điểm TB: <b id="avg-pts-b">—</b> · Tier TB: <b id="avg-tier-b">—</b></div>
+    </div>
+    <div class="step-body">
+      <div class="roster-grid" id="roster-b"></div>
+      <div class="export-section">
+        <div class="export-hint">📷 Đã chốt đội hình? Lưu lại để dùng cho lần nhập kết quả + xuất ảnh PNG gửi mọi người</div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <button class="action-btn" id="save-lineup-btn" onclick="saveLineup()" disabled>💾 LƯU ĐỘI HÌNH</button>
+          <button class="action-btn" id="export-btn" onclick="exportLineupPNG()" disabled>📸 XUẤT ẢNH PNG</button>
+        </div>
+        <div id="saved-lineup-info" style="margin-top:10px;font-size:11px;color:var(--green);letter-spacing:1px;display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: Round 1 -->
+  <div class="step-card" id="step-3">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <div class="step-title r">⚔️ Round 1 (10 hiệp)</div>
+      <div class="step-counter">Chọn side, winner và nhập kill</div>
+    </div>
+    <div class="step-body">
+      <div style="text-align:center;margin-bottom:14px;">
+        <button class="action-btn" style="border-color:#5cb4ff;color:#5cb4ff;" onclick="openQuickFill()">📋 NHẬP NHANH KILL (dán từ scoreboard)</button>
+      </div>
+      <div class="side-config">
+        <span class="side-label">Team A side:</span>
+        <div class="side-toggle">
+          <button class="side-btn ct" id="r1-side-ct" onclick="setRoundSide(1,'CT')">CT</button>
+          <button class="side-btn t"  id="r1-side-t"  onclick="setRoundSide(1,'T')">T</button>
+        </div>
+        <span class="side-label" style="margin-left:auto;">→ Team B: <span id="r1-b-side">—</span></span>
+      </div>
+
+      <div style="font-size:10px;letter-spacing:2px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;">Round 1 — Winner</div>
+      <div class="winner-row">
+        <button class="winner-btn" id="r1-win-a" onclick="selectRoundWinner(1,'A')">🔵 Team A thắng R1</button>
+        <button class="winner-btn" id="r1-win-b" onclick="selectRoundWinner(1,'B')">🔴 Team B thắng R1</button>
+      </div>
+
+      <div class="stats-input-grid">
+        <div class="stats-team-panel">
+          <div class="stats-team-title a">
+            <span>🔵 TEAM A <span class="side-display" id="r1-a-sidebadge">—</span></span>
+            <span class="outcome-tag" id="r1-outcome-a">—</span>
+          </div>
+          <div class="col-label-row">
+            <div class="col-label">Tên</div>
+            <div class="col-label">Kill R1</div>
+            <div class="col-label topkill-label" title="Top Kill side này">🏆 TOP</div>
+          </div>
+          <div id="r1-inp-a"></div>
+        </div>
+        <div class="stats-team-panel">
+          <div class="stats-team-title b">
+            <span>🔴 TEAM B <span class="side-display" id="r1-b-sidebadge">—</span></span>
+            <span class="outcome-tag" id="r1-outcome-b">—</span>
+          </div>
+          <div class="col-label-row">
+            <div class="col-label">Tên</div>
+            <div class="col-label">Kill R1</div>
+            <div class="col-label topkill-label" title="Top Kill side này">🏆 TOP</div>
+          </div>
+          <div id="r1-inp-b"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: Round 2 -->
+  <div class="step-card" id="step-4">
+    <div class="step-header">
+      <div class="step-num">4</div>
+      <div class="step-title r">⚔️ Round 2 (10 hiệp — đảo side)</div>
+      <div class="step-counter">Side tự động đảo</div>
+    </div>
+    <div class="step-body">
+      <div class="side-config">
+        <span class="side-label">Team A side:</span>
+        <span class="side-display" id="r2-a-sidebadge">—</span>
+        <span class="side-label" style="margin-left:auto;">→ Team B: <span class="side-display" id="r2-b-sidebadge">—</span></span>
+      </div>
+
+      <div style="font-size:10px;letter-spacing:2px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;">Round 2 — Winner</div>
+      <div class="winner-row">
+        <button class="winner-btn" id="r2-win-a" onclick="selectRoundWinner(2,'A')">🔵 Team A thắng R2</button>
+        <button class="winner-btn" id="r2-win-b" onclick="selectRoundWinner(2,'B')">🔴 Team B thắng R2</button>
+      </div>
+
+      <div class="stats-input-grid">
+        <div class="stats-team-panel">
+          <div class="stats-team-title a">
+            <span>🔵 TEAM A <span class="side-display" id="r2-a-sidebadge2">—</span></span>
+            <span class="outcome-tag" id="r2-outcome-a">—</span>
+          </div>
+          <div class="col-label-row">
+            <div class="col-label">Tên</div>
+            <div class="col-label">Kill R2</div>
+            <div class="col-label topkill-label" title="Top Kill side này">🏆 TOP</div>
+          </div>
+          <div id="r2-inp-a"></div>
+        </div>
+        <div class="stats-team-panel">
+          <div class="stats-team-title b">
+            <span>🔴 TEAM B <span class="side-display" id="r2-b-sidebadge2">—</span></span>
+            <span class="outcome-tag" id="r2-outcome-b">—</span>
+          </div>
+          <div class="col-label-row">
+            <div class="col-label">Tên</div>
+            <div class="col-label">Kill R2</div>
+            <div class="col-label topkill-label" title="Top Kill side này">🏆 TOP</div>
+          </div>
+          <div id="r2-inp-b"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5: Confirm -->
+  <div class="step-card" id="step-5">
+    <div class="step-header">
+      <div class="step-num">5</div>
+      <div class="step-title r">✅ Xác nhận kết quả trận đấu</div>
+    </div>
+    <div class="step-body">
+      <div class="summary-card" id="summary-card"></div>
+      <button class="submit-btn" id="submit-btn" onclick="submitMatch()" disabled>⚔ XÁC NHẬN KẾT QUẢ</button>
+    </div>
+  </div>
+</div>
+
+<!-- TEAM SPLIT -->
+<div id="page-teamsplit" class="page">
+  <div class="section-title">CHIA TEAM TỰ ĐỘNG</div>
+
+  <div class="tier-info-box" style="margin-bottom:14px;">
+    <b>🎲 Cách dùng:</b><br>
+    1. Tích chọn những người tham gia (không giới hạn số người)<br>
+    2. Bấm <b>⚡ CHIA TEAM</b> → app tự chia 2 team cân bằng theo Điểm + Tier<br>
+    3. Có thể bấm <b>🔄 Chia Lại</b> nếu chưa ưng (có yếu tố ngẫu nhiên)<br>
+    4. Bấm <b>✅ Áp Dụng</b> → đội hình sẽ được lưu, chuyển sang tab Nhập Trận
+  </div>
+
+  <div class="step-card">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div class="step-title r">👥 Chọn người tham gia</div>
+      <div class="step-counter">Đã chọn: <b id="ts-count">0</b> người</div>
+    </div>
+    <div class="step-body">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="action-btn" style="padding:8px 16px;font-size:10px;min-height:38px;" onclick="selectAllParticipants()">✓ Chọn tất cả</button>
+        <button class="action-btn" style="padding:8px 16px;font-size:10px;min-height:38px;" onclick="resetParticipants()">✗ Bỏ chọn hết</button>
+      </div>
+      <div class="roster-grid" id="ts-roster"></div>
+      <div style="margin-top:14px;text-align:center;">
+        <button class="submit-btn" id="ts-distribute-btn" onclick="distributeTeams()" disabled>⚡ CHIA TEAM TỰ ĐỘNG</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-card" id="ts-result-card" style="display:none;">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div class="step-title r">📊 Kết quả chia team</div>
+    </div>
+    <div class="step-body">
+      <div class="stats-input-grid">
+        <div class="stats-team-panel">
+          <div class="stats-team-title a"><span>🔵 TEAM A</span></div>
+          <div class="ts-stats-bar" id="ts-a-stats"></div>
+          <div id="ts-a-players"></div>
+        </div>
+        <div class="stats-team-panel">
+          <div class="stats-team-title b"><span>🔴 TEAM B</span></div>
+          <div class="ts-stats-bar" id="ts-b-stats"></div>
+          <div id="ts-b-players"></div>
+        </div>
+      </div>
+      <div class="balance-meter" id="ts-balance"></div>
+      <div style="display:flex;gap:10px;margin-top:14px;justify-content:center;flex-wrap:wrap;">
+        <button class="action-btn" onclick="distributeTeams()">🔄 CHIA LẠI</button>
+        <button class="submit-btn" style="max-width:340px;margin:0;" onclick="applyDistribution()">✅ ÁP DỤNG VÀO ĐỘI HÌNH</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div id="page-history" class="page">
+  <div class="section-title">LỊCH SỬ TRẬN ĐẤU</div>
+  <div id="history-list"></div>
+</div>
+
+<!-- MANAGE PLAYERS -->
+<div id="page-manage" class="page">
+  <div class="section-title">QUẢN LÝ NGƯỜI CHƠI</div>
+
+  <div class="tier-info-box" style="margin-bottom:14px;">
+    <b>📌 Thiết lập điểm khởi đầu:</b><br>
+    Vì hệ thống tính điểm bắt đầu từ 0 nên đa số người chơi sẽ rơi vào Recruit. Bạn có thể:<br>
+    • <b>Áp dụng nhanh theo Tier</b>: Bấm preset bên dưới để set điểm khởi đầu mặc định<br>
+    • <b>Chỉnh tay từng người</b>: Sửa trực tiếp ô điểm/tên của người chơi<br>
+    <span style="color:var(--red);font-weight:700;">⚠ Lưu ý: thao tác này sẽ <u>ghi đè điểm hiện tại</u> nếu bạn đã có dữ liệu trận đấu</span>
+  </div>
+
+  <div class="section-title" style="margin-top:18px;">➕ THÊM NGƯỜI CHƠI MỚI</div>
+  <div class="add-player-form">
+    <div class="field">
+      <label>Tên người chơi</label>
+      <input type="text" id="new-player-name" placeholder="VD: Nguyễn Văn A" maxlength="40">
+    </div>
+    <div class="field">
+      <label>Tier (optional)</label>
+      <select id="new-player-tier">
+        <option value="">— Chưa set</option>
+        <option value="1">Tier 1</option>
+        <option value="2">Tier 2</option>
+        <option value="3">Tier 3</option>
+        <option value="4">Tier 4</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Tanker</label>
+      <div class="tanker-check"><input type="checkbox" id="new-player-tanker"></div>
+    </div>
+    <button class="action-btn" onclick="addPlayer()" style="border-color:var(--green);color:var(--green);">➕ THÊM</button>
+  </div>
+
+  <div class="section-title" style="margin-top:18px;">PRESET ÁP DỤNG THEO TIER</div>
+  <div style="background:var(--panel);border:1px solid var(--border);padding:16px;margin-bottom:18px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px;">
+      <div>
+        <label style="font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;display:block;margin-bottom:4px;">Tier 1 → Điểm</label>
+        <input type="number" id="preset-t1" value="400" min="0" style="width:100%;background:#1a2030;border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:10px;outline:none;font-weight:700;min-height:42px;">
+      </div>
+      <div>
+        <label style="font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;display:block;margin-bottom:4px;">Tier 2 → Điểm</label>
+        <input type="number" id="preset-t2" value="200" min="0" style="width:100%;background:#1a2030;border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:10px;outline:none;font-weight:700;min-height:42px;">
+      </div>
+      <div>
+        <label style="font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;display:block;margin-bottom:4px;">Tier 3 → Điểm</label>
+        <input type="number" id="preset-t3" value="80" min="0" style="width:100%;background:#1a2030;border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:10px;outline:none;font-weight:700;min-height:42px;">
+      </div>
+      <div>
+        <label style="font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;display:block;margin-bottom:4px;">Tier 4 → Điểm</label>
+        <input type="number" id="preset-t4" value="20" min="0" style="width:100%;background:#1a2030;border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:10px;outline:none;font-weight:700;min-height:42px;">
+      </div>
+    </div>
+    <button class="submit-btn" style="margin-top:0;" onclick="applyPreset()">⚡ ÁP DỤNG PRESET THEO TIER</button>
+  </div>
+
+  <div class="section-title">CHỈNH SỬA THÔNG TIN</div>
+  <div style="font-size:11px;color:var(--dim);margin-bottom:10px;letter-spacing:1px;">💡 Click vào ô <b style="color:var(--gold)">Tên</b> để sửa trực tiếp · Đừng quên bấm <b style="color:var(--gold)">LƯU THAY ĐỔI</b></div>
+  <div id="manage-list"></div>
+  <button class="submit-btn" onclick="saveManageChanges()">💾 LƯU THAY ĐỔI</button>
+
+  <div class="section-title" style="margin-top:24px;">💼 BACKUP / KHÔI PHỤC DỮ LIỆU</div>
+  <div class="tier-info-box" style="margin-bottom:14px;">
+    <b>📦 Export</b> → tải file JSON chứa toàn bộ dữ liệu (người chơi, điểm, lịch sử trận). Nên backup định kỳ phòng khi mất data.<br>
+    <b>📥 Import</b> → khôi phục dữ liệu từ file JSON đã backup. <span style="color:var(--red);">⚠ Sẽ ghi đè dữ liệu hiện tại!</span>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="action-btn" onclick="exportData()">📦 EXPORT JSON BACKUP</button>
+    <label class="action-btn" style="cursor:pointer;display:inline-flex;align-items:center;">
+      📥 IMPORT JSON BACKUP
+      <input type="file" id="import-file" accept=".json,application/json" style="display:none;" onchange="importData(event)">
+    </label>
+  </div>
+
+  <div class="section-title" style="margin-top:24px;">🔐 BẢO MẬT</div>
+  <div class="tier-info-box" style="margin-bottom:14px;">
+    Đổi mật khẩu Admin. Default password lần đầu là <b>cs16admin</b>. Hãy đổi ngay sau khi setup!
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="action-btn" onclick="showChangePasswordModal()">🔑 ĐỔI MẬT KHẨU ADMIN</button>
+    <button class="action-btn" onclick="logout()" style="border-color:var(--dim);color:var(--dim);">🚪 ĐĂNG XUẤT</button>
+  </div>
+
+  <div class="section-title" style="margin-top:24px;color:var(--red);">⚠ VÙNG NGUY HIỂM</div>
+  <div class="tier-info-box" style="margin-bottom:14px;border-color:var(--red);">
+    <b style="color:var(--red);">⚠ Reset toàn bộ dữ liệu</b> sẽ xóa: danh sách người chơi, lịch sử trận, điểm, đội hình đã lưu. Hành động <b>KHÔNG THỂ HOÀN TÁC</b>. Nên Export Backup trước khi reset.
+  </div>
+  <button class="danger-btn" onclick="resetData()">⚠ RESET TOÀN BỘ DỮ LIỆU</button>
+</div>
+
+<!-- SCORING -->
+<div id="page-scoring" class="page">
+  <div class="section-title">HỆ THỐNG TÍNH ĐIỂM</div>
+  <div class="scoring-grid">
+    <div class="score-item"><div class="val">+5</div><div class="lbl">Match Win 2-0 (thắng cả 2 round)</div></div>
+    <div class="score-item"><div class="val">+5</div><div class="lbl">Hòa 1-1 (cả 2 team đều nhận)</div></div>
+    <div class="score-item"><div class="val">0</div><div class="lbl">Thua 0-2 (không cộng gì)</div></div>
+    <div class="score-item"><div class="val">+1</div><div class="lbl">Mỗi Kill (tổng 2 round)</div></div>
+    <div class="score-item"><div class="val">0</div><div class="lbl">Death (không trừ)</div></div>
+    <div class="score-item"><div class="val">+5</div><div class="lbl">Top Kill mỗi side mỗi round</div></div>
+    <div class="score-item"><div class="val">+10</div><div class="lbl">Bonus thắng team mạnh hơn</div></div>
+  </div>
+
+  <div class="tier-info-box" style="margin-top:10px;">
+    <b>🎯 Cách tính cho Match Win:</b><br>
+    • Thắng 2-0: <b>+5 điểm/người</b> (+ có thể +10 nếu thắng team mạnh hơn)<br>
+    • Hòa 1-1: <b>+5 điểm/người</b> cho cả 2 team<br>
+    • Thua 0-2: <b>0 điểm</b><br>
+    <br>
+    <b>🎯 Bonus cá nhân (cộng dồn):</b><br>
+    • Mỗi Kill (tổng 2 round): +1 điểm<br>
+    • Top Kill mỗi side mỗi round: +5 điểm (tối đa 4 slot/trận)<br>
+    <br>
+    <b>🎯 Cấu trúc trận:</b><br>
+    • 1 trận = 2 round, mỗi round 10 hiệp, side đảo sau round 1<br>
+    • Điểm tích lũy (bảng xếp hạng) đo độ chăm + đóng góp<br>
+    • <b>Tier & Chia team</b> tính theo <b>Rating kỹ năng (Elo)</b> — xem mục dưới
+  </div>
+
+  <div class="section-title" style="margin-top:20px;">XẾP HẠNG HUY HIỆU</div>
+  <div class="scoring-grid">
+    <div class="score-item"><div class="val" style="color:#ffd700">🥇 Global Elite</div><div class="lbl">500+ điểm</div></div>
+    <div class="score-item"><div class="val" style="color:#c0c0c0">🥈 Supreme</div><div class="lbl">300–499 điểm</div></div>
+    <div class="score-item"><div class="val" style="color:#44aaff">🦅 Eagle</div><div class="lbl">150–299 điểm</div></div>
+    <div class="score-item"><div class="val" style="color:#4cff6a">🎖 Rookie</div><div class="lbl">50–149 điểm</div></div>
+    <div class="score-item"><div class="val" style="color:#4a6040">— Recruit</div><div class="lbl">0–49 điểm</div></div>
+  </div>
+
+  <div class="section-title" style="margin-top:20px;">⚡ RATING KỸ NĂNG (ELO)</div>
+  <div class="tier-info-box">
+    <b>Rating = thực lực thật, tách khỏi điểm tích lũy.</b><br>
+    • Mọi người bắt đầu ở <b>1000</b><br>
+    • Mỗi <b>round</b> cập nhật 1 lần: thắng đội mạnh hơn → tăng nhiều; thắng đội yếu → tăng ít; thua đội yếu → giảm mạnh<br>
+    • <b>10 round đầu</b> mỗi người biến động nhanh (placement), sau đó ổn định<br>
+    • <b>Gánh team</b> (kill cao hơn TB trận) được cộng thêm tới +5 rating/round<br>
+    • <b>Vắng buổi</b> → không có round → rating <b>đứng yên</b>, không tụt oan<br>
+    • Sửa/xóa trận → rating tự tính lại toàn bộ cho chính xác
+  </div>
+</div>
+
+<div style="display:none;">
+  <div class="section-title" style="margin-top:20px;">TIER TỰ ĐỘNG (cũ)</div>
+  <div class="tier-info-box">
+    🟣 <b>Tier 1</b> — Top 20% điểm cao nhất<br>
+    🟢 <b>Tier 2</b> — Top 20%–50%<br>
+    🟡 <b>Tier 3</b> — Top 50%–80%<br>
+    🔴 <b>Tier 4</b> — Bottom 20%
+  </div>
+</div>
+
+<!-- ── MODAL: Match Detail ────────────────────────────────────────── -->
+<div class="modal-overlay" id="match-detail-modal" onclick="closeMatchDetailIfBackdrop(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="md-title">CHI TIẾT TRẬN ĐẤU</div>
+      <button class="modal-close" onclick="closeMatchDetail()" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body" id="md-body"></div>
+  </div>
+</div>
+
+<!-- ── MODAL: Elo Breakdown (vì sao +/- Elo) ────────────────────────── -->
+<div class="modal-overlay" id="elo-breakdown-modal" onclick="closeEloBdIfBackdrop(event)">
+  <div class="modal-box" style="max-width:440px;">
+    <div class="modal-header">
+      <div class="modal-title" id="elo-bd-title">CHI TIẾT ELO</div>
+      <button class="modal-close" onclick="closeEloBreakdown()" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body" id="elo-bd-body"></div>
+  </div>
+</div>
+
+<!-- ── MODAL: Quick Fill Kills (paste from scoreboard) ──────────────── -->
+<div class="modal-overlay" id="quickfill-modal" onclick="closeQuickFillIfBackdrop(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">📋 NHẬP NHANH KILL</div>
+      <button class="modal-close" onclick="closeQuickFill()" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tier-info-box" style="margin-bottom:14px;">
+        <b>Cách dùng:</b><br>
+        1. Chọn team A/B trước (ở bước 2)<br>
+        2. <b>Cách nhanh:</b> 📷 Upload ảnh scoreboard → OCR tự đọc<br>
+        3. <b>Cách thủ công:</b> dán mỗi người 1 dòng <code>Tên KillR1 KillR2</code><br>
+        4. App tự match tên scoreboard → người trong hệ thống<br><br>
+        <b>💡 Mẹo map chuẩn 100%:</b> Gắn <b>mã số</b> cho mỗi người (tab Quản Lý) rồi đặt nickname kèm mã, vd <code>PHAO_1798</code> → app khớp theo mã, khỏi đoán tên.<br><br>
+        <b>Ví dụ:</b> <code>Bảo Long 18 12</code>
+      </div>
+
+      <textarea id="quickfill-input" placeholder="Bảo Long 18 12&#10;Hồng Minh 15 9&#10;..." style="width:100%;min-height:120px;background:#0f1320;border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:10px;border-radius:4px;resize:vertical;"></textarea>
+      <div style="text-align:center;margin:12px 0;">
+        <button class="action-btn" onclick="parseQuickFill()">🔍 PHÂN TÍCH</button>
+      </div>
+      <div id="quickfill-result"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: Login / Change Password ─────────────────────────────── -->
+<div class="modal-overlay" id="auth-modal" onclick="closeAuthIfBackdrop(event)">
+  <div class="modal-box" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title" id="auth-modal-title">🔐 ĐĂNG NHẬP ADMIN</div>
+      <button class="modal-close" onclick="closeAuthModal()" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body" id="auth-modal-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═════════════════════════════════════════════════════════════════════
+// FIREBASE CLOUD SYNC LAYER
+// ═════════════════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyC4AOFsGZzfig7EGFVcMJe7WUQETf4UnPo",
+  authDomain: "cs16-tttvh.firebaseapp.com",
+  databaseURL: "https://cs16-tttvh-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "cs16-tttvh",
+  storageBucket: "cs16-tttvh.firebasestorage.app",
+  messagingSenderId: "974153307071",
+  appId: "1:974153307071:web:2c6c17a17dc09ef614470a"
+};
+const FB_PATH = 'squad_v2';   // BẢN V2 — nhánh Firebase riêng, không đụng dữ liệu bản cũ ('squad')
+
+// ═══════════════════════════════════════════════════════════════════
+//  PRODUCTION — sync đầy đủ với Firebase. (DEMO_MODE = false)
+// ═══════════════════════════════════════════════════════════════════
+const DEMO_MODE = false;
+const LS_KEY = DEMO_MODE ? 'cs16_v4_demo' : 'cs16_v4_v2';  // V2: localStorage riêng, không đụng cache bản cũ
+
+let firebaseDB = null;
+let firebaseConnected = false;
+let firebaseEnabled = true;       // Set false to disable Firebase entirely (fallback to localStorage only)
+let isApplyingRemoteUpdate = false;
+let firebaseInitDone = false;
+let pendingFirstSnapshot = true;  // True on the very first remote snapshot only
+
+// Watchdog state
+let connectionWatchdog = null;
+let watchdogStartTime = 0;
+let lastReconnectTime = 0;
+
+function updateSyncBadge(status) {
+  const badge = document.getElementById('sync-badge');
+  const label = document.getElementById('sync-label');
+  if (!badge || !label) return;
+  badge.classList.remove('synced','saving','offline');
+  if (status === 'synced')      { badge.classList.add('synced');  label.textContent = '✓ SYNCED'; }
+  else if (status === 'saving') { badge.classList.add('saving');  label.textContent = '↑ SAVING'; }
+  else if (status === 'offline'){ badge.classList.add('offline'); label.textContent = '⚠ OFFLINE (tap)'; }
+  else                          {                                 label.textContent = '...CONNECTING'; }
+}
+
+function initFirebase() {
+  if (!firebaseEnabled || typeof firebase === 'undefined') {
+    console.warn('[Firebase] Disabled or SDK missing — running localStorage-only');
+    updateSyncBadge('offline');
+    return;
+  }
+  try {
+    // Avoid "already initialized" error (occurs on BFCache restore on iOS Safari)
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+      console.log('[Firebase] App initialized fresh');
+    } else {
+      console.log('[Firebase] App already initialized, reusing instance');
+    }
+    firebaseDB = firebase.database();
+    setupFirebaseListeners();
+    startConnectionWatchdog();
+    firebaseInitDone = true;
+    // Force a fresh fetch via REST to bypass any cache on iOS Safari
+    fetchFreshFromServer();
+  } catch (e) {
+    console.error('[Firebase] Init failed:', e);
+    updateSyncBadge('offline');
+    firebaseEnabled = false;
+  }
+}
+
+function setupFirebaseListeners() {
+  if (!firebaseDB) return;
+  // Detach any pre-existing listeners first to avoid duplicates after reconnect
+  try {
+    firebaseDB.ref('.info/connected').off();
+    firebaseDB.ref(FB_PATH).off();
+  } catch(e) {}
+
+  // Connection state listener
+  firebaseDB.ref('.info/connected').on('value', snap => {
+    firebaseConnected = (snap.val() === true);
+    if (firebaseConnected) {
+      console.log('[Firebase] ✓ Connected to RTDB');
+      updateSyncBadge('synced');
+    } else {
+      console.log('[Firebase] ✗ Not connected');
+      updateSyncBadge();   // show "connecting" rather than "offline" immediately
+    }
+  });
+
+  // Data listener
+  firebaseDB.ref(FB_PATH).on('value', snap => {
+    handleRemoteSnapshot(snap.val());
+  }, err => {
+    console.error('[Firebase] Listen error:', err);
+    updateSyncBadge('offline');
+  });
+}
+
+function startConnectionWatchdog() {
+  if (connectionWatchdog) clearInterval(connectionWatchdog);
+  watchdogStartTime = Date.now();
+
+  connectionWatchdog = setInterval(() => {
+    if (firebaseConnected) {
+      watchdogStartTime = Date.now();   // reset
+      return;
+    }
+    const stuckSecs = Math.floor((Date.now() - watchdogStartTime) / 1000);
+
+    // After 8s stuck, force reconnect (but only once every 15s to avoid loop)
+    if (stuckSecs >= 8 && (Date.now() - lastReconnectTime) > 15000) {
+      console.log(`[Firebase] Watchdog: stuck ${stuckSecs}s, auto-reconnecting`);
+      forceReconnect(false);  // silent
+    }
+    // After 25s, show OFFLINE state for user to manually retry
+    else if (stuckSecs >= 25) {
+      updateSyncBadge('offline');
+    }
+  }, 2000);
+}
+
+function forceReconnect(showToastMsg) {
+  lastReconnectTime = Date.now();
+  watchdogStartTime = Date.now();
+  updateSyncBadge();   // reset to "connecting"
+
+  if (!firebaseEnabled || typeof firebase === 'undefined') {
+    console.warn('[Firebase] Cannot reconnect: SDK unavailable');
+    updateSyncBadge('offline');
+    return;
+  }
+
+  // Re-init DB instance if needed
+  if (!firebaseDB) {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      firebaseDB = firebase.database();
+      setupFirebaseListeners();
+      startConnectionWatchdog();
+    } catch (e) {
+      console.error('[Firebase] Re-init failed:', e);
+      updateSyncBadge('offline');
+      return;
+    }
+  }
+
+  // Force WebSocket recycle
+  try {
+    firebaseDB.goOffline();
+    setTimeout(() => {
+      try { firebaseDB.goOnline(); } catch(e) { console.error('[Firebase] goOnline failed:', e); }
+    }, 250);
+  } catch (e) {
+    console.error('[Firebase] goOffline failed:', e);
+  }
+
+  if (showToastMsg) showToast('🔄 Đang kết nối lại Firebase...');
+}
+
+// Click handler for sync badge — user-triggered reconnect
+function reconnectFirebase() {
+  forceReconnect(true);
+}
+
+// ── LIFECYCLE EVENT HANDLERS ─────────────────────────────────────────
+// 1. iOS Safari BFCache (Back-Forward Cache) — page restored from memory
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    console.log('[Firebase] Page restored from BFCache, forcing reconnect');
+    setTimeout(() => forceReconnect(false), 200);
+  }
+});
+
+// 2. Mobile browser tab visibility — tab woken up from background
+let visibilityTimeout = null;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    if (visibilityTimeout) clearTimeout(visibilityTimeout);
+    // Debounce: only reconnect if still disconnected after 1.5s
+    visibilityTimeout = setTimeout(() => {
+      if (!firebaseConnected && firebaseEnabled) {
+        console.log('[Firebase] Tab became visible while disconnected, reconnecting');
+        forceReconnect(false);
+      }
+    }, 1500);
+  }
+});
+
+// 3. Network state — WiFi ↔ 4G switch, or coming back online
+window.addEventListener('online', () => {
+  console.log('[Firebase] Network online event, reconnecting');
+  setTimeout(() => forceReconnect(false), 500);
+});
+window.addEventListener('offline', () => {
+  console.log('[Firebase] Network offline event');
+  updateSyncBadge('offline');
+});
+
+function handleRemoteSnapshot(remote) {
+  console.log('[Firebase] Listener fire — lastUpdated:',
+    remote && remote.lastUpdated ? new Date(remote.lastUpdated).toLocaleTimeString() : '—',
+    '| pendingFirst:', pendingFirstSnapshot);
+  if (pendingFirstSnapshot) {
+    pendingFirstSnapshot = false;
+    // First load — decide between using remote, or pushing local up
+    if (remote && remote.players && Object.keys(remote.players).length > 0) {
+      // Remote has data — use it
+      applyRemoteState(remote);
+      console.log('[Firebase] Loaded ', Object.keys(remote.players).length, ' players from cloud');
+    } else if (state.players && Object.keys(state.players).length > 0) {
+      // Remote empty but we have local data — migrate up
+      console.log('[Firebase] Migrating local data → cloud...');
+      pushToFirebase();
+      showToast('✓ Đã đẩy data lên Firebase! Mọi người sẽ thấy data này.');
+    }
+    return;
+  }
+  // Subsequent updates — just apply remote changes
+  if (remote) applyRemoteState(remote);
+}
+
+function applyRemoteState(remote) {
+  if (isApplyingRemoteUpdate) return;
+
+  // Timestamp guard: if remote is older than what we have, skip.
+  // This protects against stale snapshots from Firebase IndexedDB cache on iOS Safari.
+  if (remote && remote.lastUpdated != null && state.lastUpdated != null) {
+    if (Number(remote.lastUpdated) < Number(state.lastUpdated)) {
+      console.log('[Firebase] Ignoring stale snapshot (remote=' +
+        new Date(remote.lastUpdated).toLocaleTimeString() +
+        ', local=' + new Date(state.lastUpdated).toLocaleTimeString() + ')');
+      return;
+    }
+  }
+
+  isApplyingRemoteUpdate = true;
+  try {
+    // Preserve local-only fields (draft, editingMatchIndex are per-device)
+    const localDraft = state.draft;
+    const localEditing = state.editingMatchIndex;
+
+    state = remote;
+    if (!state.auth) state.auth = { password: DEFAULT_ADMIN_PASSWORD };
+    if (!state.matches) state.matches = [];
+    // Sanitize players (Firebase may have null entries from deletions)
+    state.players = sanitizePlayers(state.players);
+
+    // Restore local-only fields
+    if (localDraft != null) state.draft = localDraft;
+    if (localEditing != null) state.editingMatchIndex = localEditing;
+
+    // One-time migration: nếu dữ liệu cũ chưa có rating → tính từ lịch sử trận.
+    maybeMigrateRatings();
+
+    // Cache to localStorage (so offline reads work)
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+
+    console.log('[Firebase] APPLIED remote state (lastUpdated:',
+      state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() : '—',
+      '). Re-rendering...');
+
+    // CRITICAL: always re-render leaderboard explicitly after remote update.
+    // Use requestAnimationFrame to force paint on iOS Safari.
+    renderLeaderboard();
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => renderLeaderboard());
+    }
+    rerenderActivePageAfterSync();
+  } finally {
+    isApplyingRemoteUpdate = false;
+  }
+}
+
+function rerenderActivePageAfterSync() {
+  const tab = document.querySelector('.tab.active')?.dataset.tab;
+  if (!tab) return;
+  // Note: leaderboard re-rendered explicitly in applyRemoteState — no need here
+  if (tab === 'history')          renderHistory();
+  else if (tab === 'teamsplit')   renderTSRoster(); // safe: participantSet is local
+  else if (tab === 'log')         { /* form state is local — only roster names might be stale; skip */ }
+  else if (tab === 'manage')      {
+    // Manage has editable inputs — don't auto-overwrite unsaved changes
+    // Show a non-blocking notification
+    if (!document.getElementById('manage-sync-warn')) {
+      const warn = document.createElement('div');
+      warn.id = 'manage-sync-warn';
+      warn.style.cssText = 'background:#3a2810;border:1px solid var(--gold);padding:11px 14px;margin-bottom:12px;font-size:11px;color:var(--gold);letter-spacing:1px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;';
+      warn.innerHTML = `<span>🔄 Có cập nhật mới từ cloud. Bạn có muốn reload? (Lưu ý: thay đổi chưa lưu sẽ mất)</span><button class="action-btn" style="padding:6px 14px;font-size:10px;min-height:30px;" onclick="reloadManageNow()">RELOAD</button>`;
+      const mgPage = document.getElementById('page-manage');
+      mgPage.insertBefore(warn, mgPage.firstChild.nextSibling);
+    }
+  }
+}
+
+function reloadManageNow() {
+  const warn = document.getElementById('manage-sync-warn');
+  if (warn) warn.remove();
+  renderManage();
+}
+
+function pushToFirebase() {
+  if (DEMO_MODE) {
+    // Demo: never write to Firebase. Changes stay in local cache only.
+    console.log('[DEMO] Bỏ qua ghi Firebase — thay đổi chỉ lưu local');
+    updateSyncBadge('synced');
+    return;
+  }
+  if (!firebaseEnabled || !firebaseDB) return;
+  if (isApplyingRemoteUpdate) return;
+  // Don't sync local-only fields
+  const dataToSync = { ...state };
+  delete dataToSync.draft;
+  delete dataToSync.editingMatchIndex;
+  // Stamp the write with a timestamp so we can detect stale snapshots
+  dataToSync.lastUpdated = Date.now();
+  state.lastUpdated = dataToSync.lastUpdated;
+  updateSyncBadge('saving');
+  console.log('[Firebase] PUSH at', new Date(dataToSync.lastUpdated).toLocaleTimeString());
+  firebaseDB.ref(FB_PATH).set(dataToSync)
+    .then(() => {
+      console.log('[Firebase] ✓ PUSH success');
+      updateSyncBadge('synced');
+    })
+    .catch(err => {
+      console.error('[Firebase] Write failed:', err);
+      updateSyncBadge('offline');
+      showToast('⚠ Sync lỗi: ' + err.message, true);
+    });
+}
+
+// ── FORCE FRESH FETCH ON INIT ──
+// iOS Safari sometimes serves stale Firebase data from IndexedDB cache.
+// REST API bypasses all caches and gets fresh data directly from server.
+// We call this once on init to guarantee fresh data on every page load.
+async function fetchFreshFromServer() {
+  const url = firebaseConfig.databaseURL + '/' + FB_PATH + '.json?_t=' + Date.now();
+  console.log('[Firebase] Fetching fresh via REST...');
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data && data.players) {
+      console.log('[Firebase] ✓ Fresh data received (lastUpdated:',
+        data.lastUpdated ? new Date(data.lastUpdated).toLocaleTimeString() : '—', ')');
+      // Apply fresh data — overrides any stale listener cache
+      applyRemoteState(data);
+    } else {
+      console.log('[Firebase] Fresh fetch returned empty');
+    }
+  } catch (e) {
+    console.warn('[Firebase] Fresh fetch failed (will rely on listener):', e.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  CONSTANTS / INITIAL DATA
+// ─────────────────────────────────────────────────────────────────────
+const PLAYERS_INIT = [
+  {id:1,  name:"Lưu Thanh Bình",    tier:null, tanker:false},
+  {id:2,  name:"Vũ Duy Tùng",       tier:null, tanker:false},
+  {id:3,  name:"Trần Văn Khánh",    tier:null, tanker:false},
+  {id:4,  name:"Mai Xuân Hiếu",     tier:null, tanker:false},
+  {id:5,  name:"Hà Nguyễn Đại",     tier:null, tanker:false},
+  {id:6,  name:"Lê Gia Bình",       tier:null, tanker:false},
+  {id:7,  name:"Tùng Lâm",          tier:null, tanker:true },
+  {id:8,  name:"Bảo Long",          tier:null, tanker:false},
+  {id:9,  name:"Ngô Chí Kiên",      tier:null, tanker:false},
+  {id:10, name:"Nguyễn Văn Linh",   tier:null, tanker:false},
+  {id:11, name:"Phạm Khắc Viện",    tier:null, tanker:false},
+  {id:12, name:"Quân Kun",          tier:null, tanker:true },
+  {id:13, name:"Nguyễn Trọng Toàn", tier:null, tanker:false},
+  {id:14, name:"Bùi Quốc Việt",     tier:null, tanker:false},
+  {id:15, name:"Trịnh Sơn Tùng",    tier:null, tanker:false},
+  {id:16, name:"Minh 8 Ngón",       tier:null, tanker:false},
+  {id:17, name:"Hồng Minh",         tier:null, tanker:false},
+  {id:18, name:"Cao Tiến Thành",    tier:null, tanker:false},
+  {id:19, name:"Bùi Hải Nam",       tier:null, tanker:false},
+  {id:20, name:"Lê Huy Hoàng",      tier:null, tanker:false},
+  {id:21, name:"Linh Nghẹo",        tier:null, tanker:false},
+  {id:22, name:"Kang Min",          tier:null, tanker:false},
+];
+
+const SCORING = { win_bonus:5, kill:1, topkill:5, upset_win:10 };
+
+// ── ELO (rating kỹ năng — chạy song song, KHÔNG đụng điểm tích lũy) ──
+// rating = thực lực; dùng cho Tier + Chia team. Người vắng → rating đứng yên.
+const ELO = {
+  start: 1000,        // rating khởi điểm mọi người
+  kBase: 32,          // hệ số chuẩn
+  kPlacement: 48,     // hệ số cho ~10 trận đầu (placement, hội tụ nhanh)
+  placementGames: 10, // số trận tính placement (mỗi round = 1 trận Elo)
+  perfBonusPerKill: 1,// điểm rating thêm/bớt cho mỗi kill lệch khỏi TB trận
+  perfBonusCap: 5,    // biên performance bonus (±5)
+  // Ngưỡng Tier suy từ rating (chỉnh được sau khi thấy phân bố thực tế)
+  tier1: 1150, tier2: 1050, tier3: 950,
+};
+function ratingToTier(r) {
+  if (r >= ELO.tier1) return 1;
+  if (r >= ELO.tier2) return 2;
+  if (r >= ELO.tier3) return 3;
+  return 4;
+}
+const RANKS = [
+  {min:500,label:'Global Elite',cls:'badge-ge'},
+  {min:300,label:'Supreme',     cls:'badge-sup'},
+  {min:150,label:'Eagle',       cls:'badge-eag'},
+  {min:50, label:'Rookie',      cls:'badge-roo'},
+  {min:0,  label:'Recruit',     cls:'badge-rec'},
+];
+
+const DEFAULT_ADMIN_PASSWORD = 'cs16admin';
+
+// ─────────────────────────────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────────────────────────────
+let state = loadState();
+// Session-only admin flag (don't persist across tab close — security best practice).
+// Stored in sessionStorage so refresh within the same tab keeps you logged in,
+// but closing the tab/browser logs you out.
+let isAdmin = sessionStorage.getItem('cs16_admin') === '1';
+
+function initPlayers() {
+  const p = {};
+  PLAYERS_INIT.forEach(pl => {
+    p[pl.id] = {...pl, points:0, wins:0, losses:0, kills:0, matches:0, prevTier:pl.tier, rating:ELO.start, placementCount:0};
+  });
+  return p;
+}
+
+// Sanitize players: fixes the Firebase quirk where deleting a player creates
+// gaps in numeric keys, causing Firebase to return null entries.
+// Without this, renderLeaderboard()'s sort crashes with "null is not an object".
+function sanitizePlayers(playersIn) {
+  if (!playersIn) return {};
+  const result = {};
+  // Firebase may return either object or array (when keys look array-like)
+  const entries = Array.isArray(playersIn)
+    ? playersIn.map((p, i) => [String(i), p])
+    : Object.entries(playersIn);
+  for (const [key, p] of entries) {
+    if (!p || typeof p !== 'object') continue;
+    const id = (p.id != null && Number.isFinite(Number(p.id))) ? Number(p.id) : Number(key);
+    if (!Number.isFinite(id)) continue;
+    result[id] = {
+      id: id,
+      name: typeof p.name === 'string' && p.name.trim() ? p.name : `Player ${id}`,
+      tier: (p.tier != null && [1,2,3,4].includes(Number(p.tier))) ? Number(p.tier) : null,
+      tanker: !!p.tanker,
+      points: typeof p.points === 'number' ? p.points : 0,
+      wins: typeof p.wins === 'number' ? p.wins : 0,
+      losses: typeof p.losses === 'number' ? p.losses : 0,
+      kills: typeof p.kills === 'number' ? p.kills : 0,
+      matches: typeof p.matches === 'number' ? p.matches : 0,
+      prevTier: (p.prevTier != null && [1,2,3,4].includes(Number(p.prevTier))) ? Number(p.prevTier) : null,
+      code: (p.code != null) ? String(p.code).trim() : '',
+      rating: typeof p.rating === 'number' ? p.rating : ELO.start,
+      placementCount: typeof p.placementCount === 'number' ? p.placementCount : 0,
+    };
+  }
+  return result;
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (!s.auth) s.auth = { password: DEFAULT_ADMIN_PASSWORD };
+      // Sanitize players to prevent null-entry crashes
+      s.players = sanitizePlayers(s.players);
+      if (Object.keys(s.players).length === 0) {
+        console.warn('[State] Players wiped by sanitize, restoring defaults');
+        s.players = initPlayers();
+      }
+      if (!Array.isArray(s.matches)) s.matches = [];
+      return s;
+    }
+  } catch(e) {
+    console.error('[State] loadState failed:', e);
+  }
+  return {
+    players: initPlayers(),
+    matches: [],
+    auth: { password: DEFAULT_ADMIN_PASSWORD }
+  };
+}
+function saveState() {
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  // Also push to Firebase (if enabled and connected)
+  pushToFirebase();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  AUTH
+// ─────────────────────────────────────────────────────────────────────
+function applyAuthUI() {
+  const badge = document.getElementById('auth-badge');
+  const lbl = document.getElementById('auth-label');
+  if (isAdmin) {
+    badge.classList.add('admin');
+    lbl.textContent = '✓ ADMIN';
+  } else {
+    badge.classList.remove('admin');
+    lbl.textContent = 'PLAYER';
+  }
+  // Show/hide admin-only tabs
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.dataset.role === 'admin' && !isAdmin) t.classList.add('tab-hidden');
+    else t.classList.remove('tab-hidden');
+  });
+  // If currently on a hidden tab, redirect to leaderboard
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab && activeTab.classList.contains('tab-hidden')) {
+    switchTab('leaderboard');
+  }
+}
+
+function handleAuthClick() {
+  if (isAdmin) {
+    // Show logout / change password confirm
+    if (confirm('Bạn đang ở chế độ Admin. Đăng xuất?')) {
+      logout();
+    }
+  } else {
+    showLoginModal();
+  }
+}
+
+function showLoginModal() {
+  const modal = document.getElementById('auth-modal');
+  document.getElementById('auth-modal-title').textContent = '🔐 ĐĂNG NHẬP ADMIN';
+  document.getElementById('auth-modal-body').innerHTML = `
+    <div class="login-hint">
+      💡 Default password lần đầu: <b style="color:var(--gold)">cs16admin</b><br>
+      Sau khi đăng nhập, hãy đổi mật khẩu trong tab <b>Quản Lý</b> → mục <b>Bảo Mật</b>.
+    </div>
+    <div class="login-form" style="margin-top:14px;">
+      <label>Mật khẩu Admin</label>
+      <input type="password" id="login-password" placeholder="Nhập mật khẩu..." autocomplete="off">
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <button class="action-btn" style="flex:1;" onclick="closeAuthModal()">HỦY</button>
+        <button class="submit-btn" style="margin:0;flex:1;" onclick="submitLogin()">🔓 ĐĂNG NHẬP</button>
+      </div>
+    </div>
+  `;
+  modal.classList.add('show');
+  setTimeout(() => {
+    const inp = document.getElementById('login-password');
+    if (inp) {
+      inp.focus();
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitLogin();
+      });
+    }
+  }, 50);
+}
+
+function submitLogin() {
+  const inp = document.getElementById('login-password');
+  if (!inp) return;
+  const pwd = inp.value;
+  if (pwd === state.auth.password) {
+    isAdmin = true;
+    sessionStorage.setItem('cs16_admin', '1');
+    closeAuthModal();
+    applyAuthUI();
+    showToast('✓ Đăng nhập Admin thành công!');
+  } else {
+    showToast('✗ Sai mật khẩu!', true);
+    inp.value = '';
+    inp.focus();
+  }
+}
+
+function logout() {
+  isAdmin = false;
+  sessionStorage.removeItem('cs16_admin');
+  applyAuthUI();
+  switchTab('leaderboard');
+  showToast('Đã đăng xuất.');
+}
+
+function showChangePasswordModal() {
+  if (!isAdmin) { showToast('Chỉ Admin mới đổi được mật khẩu!', true); return; }
+  const modal = document.getElementById('auth-modal');
+  document.getElementById('auth-modal-title').textContent = '🔑 ĐỔI MẬT KHẨU';
+  document.getElementById('auth-modal-body').innerHTML = `
+    <div class="login-hint">
+      Mật khẩu mới sẽ được lưu vào dữ liệu local. Khuyến nghị: dùng <b>Export JSON Backup</b> sau khi đổi để khỏi quên.
+    </div>
+    <div class="login-form" style="margin-top:14px;">
+      <label>Mật khẩu hiện tại</label>
+      <input type="password" id="cpw-old" autocomplete="off">
+      <label>Mật khẩu mới (≥ 4 ký tự)</label>
+      <input type="password" id="cpw-new" autocomplete="off">
+      <label>Xác nhận mật khẩu mới</label>
+      <input type="password" id="cpw-confirm" autocomplete="off">
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <button class="action-btn" style="flex:1;" onclick="closeAuthModal()">HỦY</button>
+        <button class="submit-btn" style="margin:0;flex:1;" onclick="submitChangePassword()">💾 ĐỔI MẬT KHẨU</button>
+      </div>
+    </div>
+  `;
+  modal.classList.add('show');
+  setTimeout(() => { const e = document.getElementById('cpw-old'); if (e) e.focus(); }, 50);
+}
+
+function submitChangePassword() {
+  const oldEl = document.getElementById('cpw-old');
+  const newEl = document.getElementById('cpw-new');
+  const confEl = document.getElementById('cpw-confirm');
+  if (!oldEl || !newEl || !confEl) return;
+  if (oldEl.value !== state.auth.password) { showToast('Sai mật khẩu hiện tại!', true); oldEl.focus(); return; }
+  if (newEl.value.length < 4) { showToast('Mật khẩu mới quá ngắn (≥ 4 ký tự)!', true); newEl.focus(); return; }
+  if (newEl.value !== confEl.value) { showToast('Mật khẩu xác nhận không khớp!', true); confEl.focus(); return; }
+  state.auth.password = newEl.value;
+  saveState();
+  closeAuthModal();
+  showToast('✓ Đã đổi mật khẩu thành công!');
+}
+
+function closeAuthModal() {
+  document.getElementById('auth-modal').classList.remove('show');
+}
+function closeAuthIfBackdrop(e) {
+  if (e.target.id === 'auth-modal') closeAuthModal();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  TIER / RANKING
+// ─────────────────────────────────────────────────────────────────────
+// ── ELO ENGINE ───────────────────────────────────────────────────────
+// One-time migration: dữ liệu cũ (v33) không có rating. Nếu đã có trận đấu
+// nhưng rating chưa từng được tính (placementCount toàn 0 ở người đã chơi)
+// → tính lại từ lịch sử. Chạy 1 lần; sau đó dữ liệu đã có rating nên không lặp.
+let _ratingsMigrated = false;
+function maybeMigrateRatings() {
+  if (_ratingsMigrated) return;
+  const played = Object.values(state.players).filter(p => p && p.matches > 0);
+  if (played.length === 0) { _ratingsMigrated = true; return; }
+  const needsMigration = played.every(p => (p.placementCount || 0) === 0);
+  if (needsMigration) {
+    recalcAllRatings();
+    Object.values(state.players).forEach(p => {
+      if (p && p.matches > 0) { p.prevTier = p.tier; p.tier = ratingToTier(p.rating); }
+    });
+    console.log('[Migration] Đã tính rating Elo từ lịch sử trận.');
+  }
+  _ratingsMigrated = true;
+}
+
+// Tính lại TOÀN BỘ rating từ con số 0 dựa trên state.matches.
+// Vì match.details lưu đủ dữ liệu thô (kill, top kill, winner, team) nên
+// rating luôn tái tạo được chính xác — không cần lưu delta.
+// Gọi sau mỗi submit/sửa/xóa trận → rating + tier luôn đúng tuyệt đối.
+//
+// LƯU Ý: state.matches lưu mới-nhất-ở-đầu (unshift), nên duyệt từ cuối → đầu
+// để áp Elo theo đúng thứ tự thời gian (cũ → mới).
+function recalcAllRatings() {
+  // 1. Reset mọi người về mốc khởi điểm
+  Object.values(state.players).forEach(p => {
+    if (!p || typeof p !== 'object') return;
+    p.rating = ELO.start;
+    p.placementCount = 0;
+  });
+
+  // 2. Duyệt lịch sử cũ → mới, áp Elo từng round.
+  //    Đồng thời GHI LẠI delta Elo của mỗi người vào từng trận (eloDelta/eloAfter)
+  //    → người chơi xem lại trận thấy được mình +/- bao nhiêu Elo.
+  //    Vì delta được ghi mỗi lần recalc nên luôn khớp với lịch sử hiện tại,
+  //    kể cả sau khi sửa/xóa trận cũ.
+  const chrono = [...state.matches].reverse(); // cũ → mới
+  for (const m of chrono) {
+    if (!m || !m.details) continue;
+    // Khởi tạo bộ đếm delta cho trận này: rating TRƯỚC trận của mỗi người
+    const before = {};
+    [...(m.teamA||[]), ...(m.teamB||[])].forEach(id => {
+      if (state.players[id]) before[id] = state.players[id].rating;
+    });
+    // Mỗi round là một "trận" Elo riêng (mịn hơn). R1 và R2.
+    applyEloForRound(m, 1);
+    applyEloForRound(m, 2);
+    // Ghi delta = rating sau cả 2 round − rating trước trận
+    Object.keys(before).forEach(id => {
+      if (!m.details[id]) return;
+      const after = state.players[id].rating;
+      m.details[id].eloDelta = Math.round((after - before[id]) * 10) / 10;
+      m.details[id].eloAfter = Math.round(after * 10) / 10;
+    });
+  }
+}
+
+// Áp Elo cho 1 round của 1 trận.
+function applyEloForRound(m, roundNo) {
+  const winner = roundNo === 1 ? m.r1Winner : m.r2Winner;
+  if (winner !== 'A' && winner !== 'B') return; // round không có winner hợp lệ → bỏ
+
+  const idsA = (m.teamA || []).filter(id => state.players[id]);
+  const idsB = (m.teamB || []).filter(id => state.players[id]);
+  if (!idsA.length || !idsB.length) return;
+
+  const avg = ids => ids.reduce((s,id)=>s+(state.players[id].rating||ELO.start),0)/ids.length;
+  const Ra = avg(idsA), Rb = avg(idsB);
+  const Ea = 1 / (1 + Math.pow(10, (Rb - Ra) / 400)); // kỳ vọng thắng team A
+  const Eb = 1 - Ea;
+
+  const scoreA = winner === 'A' ? 1 : 0;
+  const scoreB = winner === 'B' ? 1 : 0;
+
+  // Kill trung bình của trận (dùng cho performance bonus). Tính theo round.
+  const killOf = id => {
+    const d = m.details[id];
+    if (!d) return 0;
+    return roundNo === 1 ? (d.kills_r1 || 0) : (d.kills_r2 || 0);
+  };
+  const allIds = [...idsA, ...idsB];
+  const totalKills = allIds.reduce((s,id)=>s+killOf(id),0);
+  const avgKills = allIds.length ? totalKills / allIds.length : 0;
+
+  const updateTeam = (ids, expected, score) => {
+    ids.forEach(id => {
+      const p = state.players[id];
+      const K = (p.placementCount < ELO.placementGames) ? ELO.kPlacement : ELO.kBase;
+      const baseDelta = K * (score - expected); // phần thắng/thua thuần
+      // Performance bonus: gánh team (kill > TB) cộng thêm, đi nhờ bị trừ. Biên ±cap.
+      const perfRaw = (killOf(id) - avgKills) * ELO.perfBonusPerKill;
+      const perfDelta = Math.max(-ELO.perfBonusCap, Math.min(ELO.perfBonusCap, perfRaw));
+      const delta = baseDelta + perfDelta;
+      p.rating = Math.round((p.rating + delta) * 10) / 10;
+      p.placementCount = (p.placementCount || 0) + 1;
+      // Ghi lại breakdown round này để người chơi xem vì sao +/- bằng đó
+      if (m.details[id]) {
+        if (!m.details[id].eloRounds) m.details[id].eloRounds = {};
+        const won = score === 1;
+        m.details[id].eloRounds[roundNo] = {
+          won, expected: Math.round(expected*100)/100,
+          base: Math.round(baseDelta*10)/10,
+          perf: Math.round(perfDelta*10)/10,
+          K
+        };
+      }
+    });
+  };
+  updateTeam(idsA, Ea, scoreA);
+  updateTeam(idsB, Eb, scoreB);
+}
+
+// recomputeTiers: giờ suy Tier từ RATING (thực lực) thay vì điểm tích lũy.
+// Người vắng không có round mới → rating đứng yên → Tier không tụt oan.
+function recomputeTiers() {
+  recalcAllRatings(); // rating luôn tươi trước khi gán tier
+  Object.values(state.players).forEach(p => {
+    if (!p || typeof p !== 'object') return;
+    if (p.matches > 0) {
+      p.prevTier = p.tier;
+      p.tier = ratingToTier(p.rating);
+    }
+    // Người chưa đánh trận nào (matches===0): giữ tier null như cũ.
+  });
+}
+
+function switchTab(name) {
+  // Permission check
+  const tabEl = document.querySelector(`.tab[data-tab="${name}"]`);
+  if (tabEl && tabEl.dataset.role === 'admin' && !isAdmin) {
+    showToast('Chỉ Admin mới truy cập được tab này!', true);
+    showLoginModal();
+    return;
+  }
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === name);
+  });
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if (name==='leaderboard') renderLeaderboard();
+  if (name==='log')         renderLogForm();
+  if (name==='teamsplit')   renderTeamSplit();
+  if (name==='history')     renderHistory();
+  if (name==='manage')      renderManage();
+  // Scroll active tab into view on mobile (safe fallback)
+  if (tabEl && typeof tabEl.scrollIntoView === 'function') {
+    try { tabEl.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'}); } catch(e) {}
+  }
+}
+
+function getBadge(pts) {
+  for (const r of RANKS) if (pts >= r.min) return r;
+  return RANKS[RANKS.length-1];
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  LEADERBOARD
+// ─────────────────────────────────────────────────────────────────────
+function renderLeaderboard() {
+  const sorted = Object.values(state.players)
+    .filter(p => p && typeof p === 'object' && typeof p.points === 'number')
+    .sort((a,b) => b.points - a.points);
+  document.getElementById('leaderboard').innerHTML = sorted.map((p,i) => {
+    const rank = i+1;
+    const badge = getBadge(p.points);
+    const rc = rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'';
+    const tierDiff = (p.prevTier != null && p.tier != null) ? (p.prevTier - p.tier) : 0;
+    const arrow = tierDiff > 0 ? `<span class="tier-changed tier-up">▲</span>`
+                : tierDiff < 0 ? `<span class="tier-changed tier-down">▼</span>` : '';
+    const tierCls = p.tier ? `t${p.tier}` : 't-empty';
+    const tierLabel = p.tier ? p.tier : '—';
+    const ratingVal = (typeof p.rating === 'number') ? Math.round(p.rating) : ELO.start;
+    const ratingTag = p.matches > 0
+      ? `<span style="font-size:9px;color:var(--gold);opacity:.8;letter-spacing:1px;margin-left:6px;font-family:'Share Tech Mono',monospace;">⚡${ratingVal}</span>`
+      : '';
+    return `
+    <div class="player-card ${rc}">
+      <div class="rank-num">${rank}</div>
+      <div class="tier-hex ${tierCls}">${tierLabel}${arrow}</div>
+      <div class="player-name">${p.name}${p.tanker?'<span class="tanker-tag">TANK</span>':''}${ratingTag}</div>
+      <div class="stat-cell pts">${p.points}</div>
+      <div class="stat-cell matches-mobile-hide">${p.matches}</div>
+      <div class="stat-cell wins wins-mobile-hide">${p.wins}</div>
+      <div class="stat-cell losses losses-mobile-hide">${p.losses}</div>
+      <div class="stats-line" style="display:none;">
+        <span>📋 <b>${p.matches}</b></span>
+        <span class="w">✓ <b>${p.wins}</b></span>
+        <span class="l">✗ <b>${p.losses}</b></span>
+      </div>
+      <div class="stat-cell badge-cell"><span class="badge ${badge.cls}">${badge.label}</span></div>
+    </div>`;
+  }).join('');
+  // On mobile, show stats-line; on desktop, show separate cells
+  applyResponsiveLeaderboard();
+}
+
+function applyResponsiveLeaderboard() {
+  const isMobile = window.innerWidth <= 640;
+  document.querySelectorAll('.player-card .stats-line').forEach(el => {
+    el.style.display = isMobile ? 'flex' : 'none';
+  });
+}
+window.addEventListener('resize', applyResponsiveLeaderboard);
+
+// ─────────────────────────────────────────────────────────────────────
+//  LOG FORM STATE
+// ─────────────────────────────────────────────────────────────────────
+let selA = new Set(), selB = new Set();
+let r1Side = null;
+let r1Winner = null, r2Winner = null;
+let editingMatchIndex = (state.editingMatchIndex != null) ? state.editingMatchIndex : null;
+
+function renderLogForm() {
+  selA.clear(); selB.clear();
+  r1Side = null; r1Winner = null; r2Winner = null;
+  document.getElementById('match-date').value = '';
+
+  const editBanner = document.getElementById('edit-banner');
+  const editText = document.getElementById('edit-banner-text');
+
+  if (editingMatchIndex !== null && state.matches[editingMatchIndex]) {
+    const m = state.matches[editingMatchIndex];
+    document.getElementById('match-date').value = m.date || '';
+    (m.teamA || []).forEach(id => { if (state.players[id]) selA.add(id); });
+    (m.teamB || []).forEach(id => { if (state.players[id]) selB.add(id); });
+    r1Side = m.r1Side;
+    r1Winner = m.r1Winner;
+    r2Winner = m.r2Winner;
+
+    editBanner.style.display = 'flex';
+    editText.textContent = `✏️ Đang sửa TRẬN #${state.matches.length - editingMatchIndex} — ${m.date || ''}`;
+
+    renderRosters();
+    renderRoundSides();
+    renderRoundWinners();
+    renderStatsInputs(1);
+    renderStatsInputs(2);
+
+    Object.entries(m.details || {}).forEach(([idStr, d]) => {
+      const id = parseInt(idStr);
+      const tm = m.teamA.includes(id) ? 'a' : 'b';
+      const k1El = document.getElementById(`r1-k-${tm}-${id}`);
+      const k2El = document.getElementById(`r2-k-${tm}-${id}`);
+      const tk1El = document.getElementById(`r1-tk-${tm}-${id}`);
+      const tk2El = document.getElementById(`r2-tk-${tm}-${id}`);
+      if (k1El) k1El.value = d.kills_r1 || 0;
+      if (k2El) k2El.value = d.kills_r2 || 0;
+      if (tk1El) tk1El.checked = !!d.tk_r1;
+      if (tk2El) tk2El.checked = !!d.tk_r2;
+    });
+
+    renderSummary();
+    updateStepStates();
+    updateSavedLineupInfo();
+    return;
+  }
+
+  editBanner.style.display = 'none';
+
+  if (loadDraft()) {
+    renderSummary();
+    updateStepStates();
+    updateSavedLineupInfo();
+    return;
+  }
+
+  const savedLineup = state.savedLineup;
+  if (savedLineup) {
+    if (savedLineup.date) document.getElementById('match-date').value = savedLineup.date;
+    (savedLineup.teamA || []).forEach(id => { if (state.players[id]) selA.add(id); });
+    (savedLineup.teamB || []).forEach(id => { if (state.players[id]) selB.add(id); });
+  }
+
+  renderRosters();
+  renderRoundSides();
+  renderRoundWinners();
+  renderStatsInputs(1);
+  renderStatsInputs(2);
+  renderSummary();
+  updateStepStates();
+  updateSavedLineupInfo();
+}
+
+function cancelEdit() {
+  if (!confirm('Hủy việc sửa trận đấu này? Trận sẽ được khôi phục lại điểm cũ.')) return;
+  const m = state.matches[editingMatchIndex];
+  if (m) {
+    redoMatch(m);
+  }
+  editingMatchIndex = null;
+  delete state.editingMatchIndex;
+  delete state.draft;
+  saveState();
+  renderLogForm();
+  showToast('Đã hủy sửa, trận đấu được khôi phục.');
+}
+
+function updateSavedLineupInfo() {
+  const el = document.getElementById('saved-lineup-info');
+  if (!el) return;
+  if (state.savedLineup) {
+    const dt = state.savedLineup.savedAt ? new Date(state.savedLineup.savedAt).toLocaleString('vi-VN') : '';
+    el.style.display = 'block';
+    el.innerHTML = `✓ Đã có đội hình lưu (${dt}) — Team A: ${state.savedLineup.teamA.length} người, Team B: ${state.savedLineup.teamB.length} người &nbsp;<button onclick="clearSavedLineup()" style="background:none;border:1px solid var(--red);color:var(--red);font-size:10px;padding:3px 8px;cursor:pointer;margin-left:6px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">🗑 XÓA</button>`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function renderRosters() {
+  const players = Object.values(state.players)
+    .filter(p => p && typeof p === 'object' && p.name)
+    .sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  ['a','b'].forEach(tm => {
+    const otherSet = tm==='a' ? selB : selA;
+    document.getElementById(`roster-${tm}`).innerHTML = players.map(p => {
+      const mySet = tm==='a' ? selA : selB;
+      const disabled = otherSet.has(p.id);
+      const selected = mySet.has(p.id);
+      const cls = `pbtn ${selected?(tm==='a'?'sel-a':'sel-b'):''} ${disabled?'disabled':''}`;
+      const tCls = p.tier ? `t${p.tier}` : 't-empty';
+      const tLab = p.tier ? p.tier : '—';
+      return `<button class="${cls}" onclick="toggleP('${tm}',${p.id})">
+        <span class="tier-mini ${tCls}">${tLab}</span>
+        <span>${p.name}</span>
+      </button>`;
+    }).join('');
+  });
+  document.getElementById('count-a').textContent = selA.size;
+  document.getElementById('count-b').textContent = selB.size;
+
+  ['a','b'].forEach(tm => {
+    const set = tm==='a' ? selA : selB;
+    const ps = [...set].map(id => state.players[id]).filter(Boolean);
+    const avgPts = ps.length ? Math.round(ps.reduce((s,p)=>s+(p.points||0),0)/ps.length) : null;
+    const tiers = ps.map(p => p.tier).filter(t => t != null);
+    const avgT = tiers.length ? (tiers.reduce((s,t)=>s+t,0)/tiers.length).toFixed(2) : null;
+    document.getElementById(`avg-pts-${tm}`).textContent = avgPts != null ? avgPts : '—';
+    document.getElementById(`avg-tier-${tm}`).textContent = avgT != null ? avgT : '—';
+  });
+}
+
+function toggleP(tm, id) {
+  const mine  = tm==='a'?selA:selB;
+  const other = tm==='a'?selB:selA;
+  if (other.has(id)) return;
+  mine.has(id) ? mine.delete(id) : mine.add(id);
+  renderRosters();
+  renderStatsInputs(1);
+  renderStatsInputs(2);
+  renderSummary();
+  updateStepStates();
+  saveDraft();
+}
+
+function setRoundSide(round, side) {
+  if (round === 1) r1Side = side;
+  renderRoundSides();
+  renderStatsInputs(1);
+  renderStatsInputs(2);
+  updateStepStates();
+  saveDraft();
+}
+
+function renderRoundSides() {
+  const btnCT = document.getElementById('r1-side-ct');
+  const btnT  = document.getElementById('r1-side-t');
+  btnCT.classList.toggle('active', r1Side==='CT');
+  btnT.classList.toggle('active', r1Side==='T');
+
+  const r1bSide = r1Side==='CT' ? 'T' : r1Side==='T' ? 'CT' : '—';
+  document.getElementById('r1-b-side').textContent = r1bSide;
+
+  const setSideBadge = (id, side) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = side;
+    el.className = 'side-display ' + (side==='CT'?'ct':side==='T'?'t':'');
+  };
+  setSideBadge('r1-a-sidebadge', r1Side || '—');
+  setSideBadge('r1-b-sidebadge', r1bSide);
+
+  const r2aSide = r1Side==='CT' ? 'T' : r1Side==='T' ? 'CT' : '—';
+  const r2bSide = r1Side==='CT' ? 'CT' : r1Side==='T' ? 'T' : '—';
+  setSideBadge('r2-a-sidebadge', r2aSide);
+  setSideBadge('r2-b-sidebadge', r2bSide);
+  setSideBadge('r2-a-sidebadge2', r2aSide);
+  setSideBadge('r2-b-sidebadge2', r2bSide);
+}
+
+function selectRoundWinner(round, team) {
+  if (round === 1) r1Winner = team;
+  else             r2Winner = team;
+  renderRoundWinners();
+  renderSummary();
+  updateStepStates();
+  saveDraft();
+}
+
+function renderRoundWinners() {
+  const set = (id, val, team) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'winner-btn';
+    if (val === team) el.classList.add(team==='A'?'sel-a':'sel-b');
+    else if (val) el.classList.add('loser');
+  };
+  set('r1-win-a', r1Winner, 'A'); set('r1-win-b', r1Winner, 'B');
+  set('r2-win-a', r2Winner, 'A'); set('r2-win-b', r2Winner, 'B');
+
+  const outcome = (winnerVal, tm, elId) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!winnerVal) { el.textContent='—'; el.className='outcome-tag'; return; }
+    if (winnerVal === tm.toUpperCase()) { el.textContent='✓ Thắng round'; el.className='outcome-tag outcome-win'; }
+    else                                 { el.textContent='✗ Thua round'; el.className='outcome-tag outcome-lose'; }
+  };
+  outcome(r1Winner, 'A', 'r1-outcome-a'); outcome(r1Winner, 'B', 'r1-outcome-b');
+  outcome(r2Winner, 'A', 'r2-outcome-a'); outcome(r2Winner, 'B', 'r2-outcome-b');
+}
+
+function renderStatsInputs(round) {
+  const renderTeam = (tm, set) => {
+    const containerId = `r${round}-inp-${tm}`;
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    // Preserve currently-entered values before rebuilding the DOM.
+    // Without this, toggling a player (add/remove) would reset everyone's
+    // kills to 0 — the cause of "points reset to 0 when editing a match".
+    const prev = {};
+    [...set].forEach(id => {
+      const kEl  = document.getElementById(`r${round}-k-${tm}-${id}`);
+      const tkEl = document.getElementById(`r${round}-tk-${tm}-${id}`);
+      if (kEl || tkEl) {
+        prev[id] = {
+          k:  kEl ? kEl.value : '0',
+          tk: tkEl ? tkEl.checked : false
+        };
+      }
+    });
+
+    if (!set.size) {
+      el.innerHTML = '<div class="empty-state" style="padding:18px;font-size:11px;">Chưa chọn người chơi</div>';
+      return;
+    }
+    el.innerHTML = [...set].map(id => {
+      const p = state.players[id];
+      const tCls = p.tier ? `t${p.tier}` : 't-empty';
+      const tLab = p.tier ? p.tier : '—';
+      const saved = prev[id] || { k: '0', tk: false };
+      return `
+      <div class="player-input-row">
+        <div class="pname-cell">
+          <span class="tier-mini ${tCls}">${tLab}</span>
+          <span class="pname-text">${p.name}</span>
+        </div>
+        <input type="number" id="r${round}-k-${tm}-${id}" min="0" value="${saved.k}" title="Kill round ${round}" onchange="renderSummary(); saveDraft();">
+        <input type="checkbox" class="topkill-cb" id="r${round}-tk-${tm}-${id}" ${saved.tk ? 'checked' : ''} onclick="onTopKillCheck(${round},'${tm}',${id})">
+      </div>`;
+    }).join('');
+  };
+  renderTeam('a', selA);
+  renderTeam('b', selB);
+}
+
+function onTopKillCheck(round, tm, id) {
+  const set = tm==='a' ? selA : selB;
+  set.forEach(pid => {
+    if (pid !== id) {
+      const cb = document.getElementById(`r${round}-tk-${tm}-${pid}`);
+      if (cb) cb.checked = false;
+    }
+  });
+  renderSummary();
+  saveDraft();
+}
+
+function getVal(id) { const e=document.getElementById(id); return e?parseInt(e.value)||0:0; }
+function getChk(id) { const e=document.getElementById(id); return e?e.checked:false; }
+
+// ─────────────────────────────────────────────────────────────────────
+//  QUICK FILL — paste scoreboard data, fuzzy-match names, fill kills
+// ─────────────────────────────────────────────────────────────────────
+let quickFillParsed = [];
+
+function openQuickFill() {
+  if (!selA.size && !selB.size) {
+    showToast('Hãy chọn người chơi cho 2 team trước!', true);
+    return;
+  }
+  document.getElementById('quickfill-input').value = '';
+  document.getElementById('quickfill-result').innerHTML = '';
+  quickFillParsed = [];
+  document.getElementById('quickfill-modal').classList.add('show');
+}
+function closeQuickFill() {
+  document.getElementById('quickfill-modal').classList.remove('show');
+}
+function closeQuickFillIfBackdrop(e) {
+  if (e.target.id === 'quickfill-modal') closeQuickFill();
+}
+
+// Normalize a string for fuzzy comparison: lowercase, strip accents & non-alphanumeric
+function normalizeStr(s) {
+  return (s || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+// Match by embedded code first (most reliable), then fall back to name fuzzy match.
+// Players set their in-game nickname to include their code, e.g. "PHAO_1798" or "Bình_01".
+function matchByCode(nameText) {
+  // Extract digit sequences of length >= 2 (avoids single stray digits like the "1" in "s1mple")
+  const codes = (nameText.match(/\d{2,}/g) || []);
+  if (!codes.length) return null;
+  const selectedIds = [...selA, ...selB];
+  for (const c of codes) {
+    // Exact string match on code (so "01" matches "01" but not the "1" inside a nickname)
+    const p = selectedIds.map(id => state.players[id])
+      .find(p => p && p.code && String(p.code).trim() === c);
+    if (p) return p.id;
+  }
+  return null;
+}
+
+// Find best matching selected player for a scoreboard name
+function fuzzyMatchPlayer(name) {
+  // 1. Try code match first (reliable)
+  const byCode = matchByCode(name);
+  if (byCode != null) return byCode;
+  // 2. Fall back to fuzzy name match
+  const norm = normalizeStr(name);
+  if (!norm) return null;
+  const selectedIds = [...selA, ...selB];
+  const candidates = selectedIds.map(id => state.players[id]).filter(Boolean);
+  let m = candidates.find(p => normalizeStr(p.name) === norm);
+  if (m) return m.id;
+  m = candidates.find(p => {
+    const pn = normalizeStr(p.name);
+    return pn.includes(norm) || norm.includes(pn);
+  });
+  if (m) return m.id;
+  if (norm.length >= 4) {
+    m = candidates.find(p => normalizeStr(p.name).slice(0,4) === norm.slice(0,4));
+    if (m) return m.id;
+  }
+  return null;
+}
+
+function parseQuickFill() {
+  const raw = document.getElementById('quickfill-input').value;
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  quickFillParsed = [];
+  for (const line of lines) {
+    // Split on whitespace / comma / tab / semicolon
+    const parts = line.split(/[\s,;\t]+/).filter(Boolean);
+    if (parts.length < 3) continue;
+    const r2 = parseInt(parts[parts.length - 1]);
+    const r1 = parseInt(parts[parts.length - 2]);
+    const name = parts.slice(0, parts.length - 2).join(' ');
+    if (isNaN(r1) || isNaN(r2)) continue;
+    quickFillParsed.push({ name, r1, r2, matchedId: fuzzyMatchPlayer(name) });
+  }
+  renderQuickFillResult();
+}
+
+function renderQuickFillResult() {
+  const el = document.getElementById('quickfill-result');
+  if (!quickFillParsed.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:14px;">Chưa parse được dòng nào. Kiểm tra format: <code>Tên R1 R2</code></div>';
+    return;
+  }
+  const selectedIds = [...selA, ...selB];
+  const options = selectedIds.map(id => state.players[id]).filter(Boolean)
+    .sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+
+  let html = '<div style="font-size:11px;color:var(--dim);margin-bottom:8px;letter-spacing:1px;">KẾT QUẢ PHÂN TÍCH — kiểm tra & sửa map nếu cần:</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+  quickFillParsed.forEach((row, idx) => {
+    const matched = row.matchedId != null;
+    const dropdown = `<select id="qf-map-${idx}" style="background:#0f1320;border:1px solid ${matched?'var(--border)':'#e05555'};color:var(--text);padding:6px;border-radius:4px;font-size:12px;max-width:140px;">
+      <option value="">— Bỏ qua —</option>
+      ${options.map(p => `<option value="${p.id}" ${p.id===row.matchedId?'selected':''}>${p.name}</option>`).join('')}
+    </select>`;
+    html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${matched?'rgba(92,180,255,0.07)':'rgba(224,85,85,0.1)'};border-radius:4px;flex-wrap:wrap;">
+      <span style="flex:1;min-width:90px;font-family:'Share Tech Mono',monospace;font-size:12px;">${matched?'✓':'⚠'} ${row.name}</span>
+      <span style="font-size:11px;color:var(--dim);">R1:<b style="color:var(--gold);">${row.r1}</b> R2:<b style="color:var(--gold);">${row.r2}</b></span>
+      ${dropdown}
+    </div>`;
+  });
+  html += '</div>';
+  const unmatched = quickFillParsed.filter(r => r.matchedId == null).length;
+  if (unmatched > 0) {
+    html += `<div style="font-size:11px;color:#e05555;margin-top:8px;">⚠ ${unmatched} tên chưa map — chọn thủ công ở dropdown hoặc để "Bỏ qua".</div>`;
+  }
+  html += '<div style="text-align:center;margin-top:14px;"><button class="action-btn" onclick="applyQuickFill()">✅ ÁP DỤNG VÀO FORM</button></div>';
+  el.innerHTML = html;
+}
+
+function applyQuickFill() {
+  let applied = 0;
+  quickFillParsed.forEach((row, idx) => {
+    const sel = document.getElementById(`qf-map-${idx}`);
+    const pid = sel ? parseInt(sel.value) : NaN;
+    if (!pid || isNaN(pid)) return;
+    const tm = selA.has(pid) ? 'a' : (selB.has(pid) ? 'b' : null);
+    if (!tm) return;
+    const k1El = document.getElementById(`r1-k-${tm}-${pid}`);
+    const k2El = document.getElementById(`r2-k-${tm}-${pid}`);
+    if (k1El) k1El.value = row.r1;
+    if (k2El) k2El.value = row.r2;
+    applied++;
+  });
+  renderSummary();
+  saveDraft();
+  closeQuickFill();
+  showToast(`✓ Đã điền kill cho ${applied} người chơi`);
+}
+
+function saveDraft() {
+  if (selA.size === 0 && selB.size === 0) {
+    delete state.draft;
+    saveState();
+    return;
+  }
+  const draft = {
+    date: document.getElementById('match-date')?.value || '',
+    teamA: [...selA],
+    teamB: [...selB],
+    r1Side, r1Winner, r2Winner,
+    stats: {},
+    isEditing: editingMatchIndex !== null,
+  };
+  [...selA, ...selB].forEach(id => {
+    const tm = selA.has(id) ? 'a' : 'b';
+    draft.stats[id] = {
+      k1: getVal(`r1-k-${tm}-${id}`),
+      k2: getVal(`r2-k-${tm}-${id}`),
+      tk1: getChk(`r1-tk-${tm}-${id}`),
+      tk2: getChk(`r2-tk-${tm}-${id}`),
+    };
+  });
+  state.draft = draft;
+  saveState();
+}
+
+function loadDraft() {
+  const d = state.draft;
+  if (!d) return false;
+  if (editingMatchIndex !== null && !d.isEditing) return false;
+  document.getElementById('match-date').value = d.date || '';
+  (d.teamA || []).forEach(id => { if (state.players[id]) selA.add(id); });
+  (d.teamB || []).forEach(id => { if (state.players[id]) selB.add(id); });
+  r1Side = d.r1Side;
+  r1Winner = d.r1Winner;
+  r2Winner = d.r2Winner;
+  renderRosters();
+  renderRoundSides();
+  renderRoundWinners();
+  renderStatsInputs(1);
+  renderStatsInputs(2);
+  Object.entries(d.stats || {}).forEach(([idStr, s]) => {
+    const id = parseInt(idStr);
+    const tm = selA.has(id) ? 'a' : 'b';
+    const k1El = document.getElementById(`r1-k-${tm}-${id}`);
+    const k2El = document.getElementById(`r2-k-${tm}-${id}`);
+    const tk1El = document.getElementById(`r1-tk-${tm}-${id}`);
+    const tk2El = document.getElementById(`r2-tk-${tm}-${id}`);
+    if (k1El) k1El.value = s.k1 || 0;
+    if (k2El) k2El.value = s.k2 || 0;
+    if (tk1El) tk1El.checked = !!s.tk1;
+    if (tk2El) tk2El.checked = !!s.tk2;
+  });
+  return true;
+}
+
+function computeMatchPreview() {
+  if (!r1Winner || !r2Winner) return null;
+  const aWins = (r1Winner==='A'?1:0) + (r2Winner==='A'?1:0);
+  const bWins = 2 - aWins;
+  let result;
+  if (aWins > bWins) result = 'A';
+  else if (bWins > aWins) result = 'B';
+  else result = 'DRAW';
+  return { aWins, bWins, result };
+}
+
+function renderSummary() {
+  const el = document.getElementById('summary-card');
+  if (!el) return;
+  if (!selA.size || !selB.size) {
+    el.innerHTML = '<div style="color:var(--dim);text-align:center;padding:14px;font-size:11px;">Hoàn tất các bước trên để xem tóm tắt</div>';
+    return;
+  }
+  const preview = computeMatchPreview();
+  if (!preview) {
+    el.innerHTML = '<div style="color:var(--dim);text-align:center;padding:14px;font-size:11px;">Chọn winner cả 2 round để xem tóm tắt</div>';
+    return;
+  }
+  const avgTier = set => {
+    const arr = [...set].map(id => state.players[id].tier).filter(t => t != null);
+    return arr.length ? arr.reduce((s,t)=>s+t,0)/arr.length : null;
+  };
+  const tA = avgTier(selA), tB = avgTier(selB);
+  let finalText, finalColor;
+  if (preview.result === 'DRAW') { finalText = '🤝 HÒA 1-1'; finalColor = '#c0c0c0'; }
+  else if (preview.result === 'A') { finalText = `🏆 TEAM A THẮNG ${preview.aWins}-${preview.bWins}`; finalColor = 'var(--blue)'; }
+  else { finalText = `🏆 TEAM B THẮNG ${preview.bWins}-${preview.aWins}`; finalColor = 'var(--orange)'; }
+
+  let bonusText;
+  if (preview.result === 'DRAW') {
+    bonusText = `<span style="color:var(--gold);">🤝 Hòa 1-1 → cả 2 team +5 điểm/người</span>`;
+  } else {
+    const winT = preview.result;
+    bonusText = `<span style="color:var(--gold);">🏆 Team ${winT} thắng 2-0 → Team ${winT} +5 điểm/người (bonus thắng)</span>`;
+  }
+
+  el.innerHTML = `
+    <div class="summary-row"><span>Round 1:</span> <span>Team ${r1Winner} thắng</span></div>
+    <div class="summary-row"><span>Round 2:</span> <span>Team ${r2Winner} thắng</span></div>
+    <div class="summary-row" style="padding:8px 0;">${bonusText}</div>
+    <div class="summary-row"><span>Tier TB Team A:</span> <b>${tA!=null?tA.toFixed(2):'—'}</b></div>
+    <div class="summary-row"><span>Tier TB Team B:</span> <b>${tB!=null?tB.toFixed(2):'—'}</b></div>
+    <div class="match-final" style="color:${finalColor};border:1px solid ${finalColor};">${finalText}</div>
+  `;
+}
+
+function updateStepStates() {
+  const s2 = document.getElementById('step-2');
+  const s3 = document.getElementById('step-3');
+  const s4 = document.getElementById('step-4');
+  const s5 = document.getElementById('step-5');
+  const btn= document.getElementById('submit-btn');
+  const exportBtn = document.getElementById('export-btn');
+
+  s2.classList.toggle('locked', selA.size === 0);
+  s3.classList.toggle('locked', selA.size === 0 || selB.size === 0);
+  s4.classList.toggle('locked', !r1Side || !r1Winner);
+  s5.classList.toggle('locked', !r1Winner || !r2Winner);
+
+  btn.disabled = !(selA.size > 0 && selB.size > 0 && r1Side && r1Winner && r2Winner);
+  const bothChosen = selA.size > 0 && selB.size > 0;
+  if (exportBtn) exportBtn.disabled = !bothChosen;
+  const saveBtn = document.getElementById('save-lineup-btn');
+  if (saveBtn) saveBtn.disabled = !bothChosen;
+}
+
+function submitMatch() {
+  if (!selA.size || !selB.size) { showToast('Cần chọn người chơi cả 2 team!', true); return; }
+  if (!r1Side)   { showToast('Chọn side cho Round 1!', true); return; }
+  if (!r1Winner || !r2Winner) { showToast('Chọn winner cho cả 2 round!', true); return; }
+
+  const date = document.getElementById('match-date').value || new Date().toLocaleDateString('vi-VN');
+
+  const preview = computeMatchPreview();
+  const matchWinner = preview.result;
+
+  const avgTier = set => {
+    const arr = [...set].map(id => state.players[id].tier).filter(t => t != null);
+    return arr.length ? arr.reduce((s,t)=>s+t,0)/arr.length : null;
+  };
+  const tA = avgTier(selA), tB = avgTier(selB);
+
+  const matchLog = {
+    date, r1Side, r1Winner, r2Winner,
+    aRoundsWon: preview.aWins, bRoundsWon: preview.bWins,
+    matchWinner,
+    teamA:[...selA], teamB:[...selB],
+    details:{}
+  };
+
+  const allPlayers = [...selA, ...selB];
+  allPlayers.forEach(id => {
+    const p = state.players[id];
+    const team = selA.has(id) ? 'A' : 'B';
+    let pts = 0;
+    let detail = { kills_r1:0, kills_r2:0, tk_r1:false, tk_r2:false, pts:0 };
+
+    const k1 = getVal(`r1-k-${team.toLowerCase()}-${id}`);
+    const tk1 = getChk(`r1-tk-${team.toLowerCase()}-${id}`);
+    detail.kills_r1 = k1; detail.tk_r1 = tk1;
+    pts += k1 * SCORING.kill;
+    if (tk1) pts += SCORING.topkill;
+
+    const k2 = getVal(`r2-k-${team.toLowerCase()}-${id}`);
+    const tk2 = getChk(`r2-tk-${team.toLowerCase()}-${id}`);
+    detail.kills_r2 = k2; detail.tk_r2 = tk2;
+    pts += k2 * SCORING.kill;
+    if (tk2) pts += SCORING.topkill;
+
+    if (matchWinner === 'DRAW') {
+      pts += SCORING.win_bonus;
+    } else if (matchWinner === team) {
+      pts += SCORING.win_bonus;
+      if (tA != null && tB != null) {
+        const winTier = team==='A' ? tA : tB;
+        const loseTier= team==='A' ? tB : tA;
+        if (winTier > loseTier) pts += SCORING.upset_win;
+      }
+    }
+
+    p.points = Math.max(0, p.points + pts);
+    p.kills += (k1 + k2);
+    p.matches++;
+    if (matchWinner === team) p.wins++;
+    else if (matchWinner !== 'DRAW') p.losses++;
+
+    detail.pts = pts;
+    matchLog.details[id] = detail;
+  });
+
+  if (editingMatchIndex !== null) {
+    state.matches[editingMatchIndex] = matchLog;
+    editingMatchIndex = null;
+    delete state.editingMatchIndex;
+  } else {
+    state.matches.unshift(matchLog);
+    delete state.savedLineup;
+  }
+  recomputeTiers(); // sau khi match đã vào state.matches → rating tính đủ trận mới
+  delete state.draft;
+  saveState();
+  showToast('✓ Đã lưu! Tier đã được cập nhật.');
+  setTimeout(()=>switchTab('leaderboard'), 1400);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  HISTORY
+// ─────────────────────────────────────────────────────────────────────
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if (!state.matches.length) { el.innerHTML='<div class="empty-state">Chưa có trận nào</div>'; return; }
+  el.innerHTML = state.matches.map((m,i) => {
+    const nameA = m.teamA.map(id=>state.players[id]?.name||'?').join(', ');
+    const nameB = m.teamB.map(id=>state.players[id]?.name||'?').join(', ');
+    const tkR1 = Object.entries(m.details||{}).filter(([,v])=>v.tk_r1).map(([id])=>state.players[id]?.name||'?');
+    const tkR2 = Object.entries(m.details||{}).filter(([,v])=>v.tk_r2).map(([id])=>state.players[id]?.name||'?');
+    let resultLabel;
+    if (m.matchWinner === 'DRAW') resultLabel = `🤝 HÒA ${m.aRoundsWon}-${m.bRoundsWon}`;
+    else resultLabel = `🏆 TEAM ${m.matchWinner} THẮNG ${Math.max(m.aRoundsWon,m.bRoundsWon)}-${Math.min(m.aRoundsWon,m.bRoundsWon)}`;
+
+    const adminBtns = isAdmin ? `
+      <button class="match-action-btn edit" onclick="startEdit(${i})">✏️ Sửa</button>
+      <button class="match-action-btn delete" onclick="deleteMatch(${i})">🗑 Xóa</button>` : '';
+
+    return `
+    <div class="history-card">
+      <div class="history-header">
+        <div class="history-header-left">
+          <span>TRẬN #${state.matches.length-i} — ${m.date}</span>
+          <span class="winner-label">${resultLabel}</span>
+        </div>
+        <div class="history-header-right">
+          <button class="match-action-btn view" onclick="showMatchDetail(${i})">👁 Xem</button>
+          ${adminBtns}
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--blue);margin-bottom:4px;">🔵 <b>Team A:</b> <span style="color:var(--text)">${nameA}</span></div>
+      <div style="font-size:12px;color:var(--orange);margin-bottom:8px;">🔴 <b>Team B:</b> <span style="color:var(--text)">${nameB}</span></div>
+      <div style="font-size:11px;color:var(--dim);padding:4px 8px;background:#1a2030;border-left:2px solid var(--ct);margin-bottom:3px;">
+        <b style="color:var(--text)">R1:</b> Team A=${m.r1Side||'?'} • Winner: <b style="color:var(--gold)">Team ${m.r1Winner}</b> ${tkR1.length?`• 🏅 Top: <b style="color:var(--gold)">${tkR1.join(', ')}</b>`:''}
+      </div>
+      <div style="font-size:11px;color:var(--dim);padding:4px 8px;background:#1a2030;border-left:2px solid var(--t);">
+        <b style="color:var(--text)">R2:</b> Team A=${m.r1Side==='CT'?'T':'CT'} • Winner: <b style="color:var(--gold)">Team ${m.r2Winner}</b> ${tkR2.length?`• 🏅 Top: <b style="color:var(--gold)">${tkR2.join(', ')}</b>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  MATCH DETAIL MODAL
+// ─────────────────────────────────────────────────────────────────────
+function showMatchDetail(idx) {
+  const m = state.matches[idx];
+  if (!m) return;
+
+  const matchNum = state.matches.length - idx;
+  document.getElementById('md-title').textContent = `📋 TRẬN #${matchNum} — ${m.date || ''}`;
+
+  let resultLabel, resultColor;
+  if (m.matchWinner === 'DRAW') {
+    resultLabel = `🤝 HÒA ${m.aRoundsWon}-${m.bRoundsWon}`;
+    resultColor = '#c0c0c0';
+  } else if (m.matchWinner === 'A') {
+    resultLabel = `🏆 TEAM A THẮNG ${m.aRoundsWon}-${m.bRoundsWon}`;
+    resultColor = 'var(--blue)';
+  } else {
+    resultLabel = `🏆 TEAM B THẮNG ${m.bRoundsWon}-${m.aRoundsWon}`;
+    resultColor = 'var(--orange)';
+  }
+
+  // Compute team totals
+  const teamStats = (ids) => {
+    let totalKills=0, totalPts=0;
+    ids.forEach(id => {
+      const d = m.details && m.details[id];
+      if (d) {
+        totalKills += (d.kills_r1||0) + (d.kills_r2||0);
+        totalPts += (d.pts || 0);
+      }
+    });
+    return { totalKills, totalPts };
+  };
+  const tsA = teamStats(m.teamA);
+  const tsB = teamStats(m.teamB);
+
+  const r1bSide = m.r1Side === 'CT' ? 'T' : m.r1Side === 'T' ? 'CT' : '?';
+  const r2aSide = r1bSide;  // swapped from r1
+  const r2bSide = m.r1Side || '?';
+
+  const tkR1Names = Object.entries(m.details||{}).filter(([,v])=>v.tk_r1).map(([id])=>state.players[id]?.name||'?');
+  const tkR2Names = Object.entries(m.details||{}).filter(([,v])=>v.tk_r2).map(([id])=>state.players[id]?.name||'?');
+
+  const renderTeamRows = (ids, teamLetter) => {
+    if (!ids || !ids.length) return '<div class="empty-state" style="padding:14px;font-size:11px;">Không có người chơi</div>';
+    // Sort by points descending
+    const rows = ids.map(id => {
+      const p = state.players[id];
+      const d = m.details && m.details[id] || { kills_r1:0, kills_r2:0, tk_r1:false, tk_r2:false, pts:0 };
+      const name = p ? p.name : '(đã xóa)';
+      const tier = p && p.tier ? p.tier : null;
+      const tCls = tier ? `t${tier}` : 't-empty';
+      const tLab = tier ? tier : '—';
+      // Elo delta của trận này (đã được recalcAllRatings ghi vào details)
+      const ed = (typeof d.eloDelta === 'number') ? d.eloDelta : null;
+      let eloCell;
+      if (ed === null) {
+        eloCell = `<div class="elo flat">–</div>`;
+      } else {
+        const rounded = Math.round(ed);
+        const cls = rounded > 0 ? 'up' : rounded < 0 ? 'down' : 'flat';
+        const sign = rounded > 0 ? '+' : '';
+        eloCell = `<div class="elo ${cls}" style="cursor:pointer;text-decoration:underline dotted;" onclick="showEloBreakdown(${idx},'${id}')" title="Bấm xem vì sao ${sign}${rounded}">${sign}${rounded}</div>`;
+      }
+      return {
+        html: `<div class="md-player-row">
+          <span class="tier-mini ${tCls}">${tLab}</span>
+          <div class="nm">${name}${p && p.tanker?'<span class="tanker-tag">TANK</span>':''}</div>
+          <div class="k" title="Kill Round 1">${d.kills_r1||0}</div>
+          <div class="k" title="Kill Round 2">${d.kills_r2||0}</div>
+          ${eloCell}
+          <div class="pts">+${d.pts||0}</div>
+        </div>`,
+        pts: d.pts || 0
+      };
+    });
+    rows.sort((a,b) => b.pts - a.pts);
+    return `
+      <div class="md-col-header">
+        <div></div><div>TÊN</div><div>K-R1</div><div>K-R2</div><div>⚡ELO</div><div>ĐIỂM</div>
+      </div>
+      ${rows.map(r=>r.html).join('')}
+    `;
+  };
+
+  document.getElementById('md-body').innerHTML = `
+    <div class="md-result-banner" style="color:${resultColor};border-color:${resultColor};">${resultLabel}</div>
+
+    <div class="md-meta-grid">
+      <div class="md-meta-item"><div class="lbl">Ngày</div><div class="val">${m.date || '—'}</div></div>
+      <div class="md-meta-item"><div class="lbl">Tổng kill A</div><div class="val">${tsA.totalKills}</div></div>
+      <div class="md-meta-item"><div class="lbl">Tổng kill B</div><div class="val">${tsB.totalKills}</div></div>
+      <div class="md-meta-item"><div class="lbl">Tổng điểm cộng</div><div class="val">${tsA.totalPts + tsB.totalPts}</div></div>
+    </div>
+
+    <div class="md-rounds-box">
+      <div class="md-round-line">
+        <b>🔵 R1:</b> Team A side = <b>${m.r1Side || '?'}</b> · Team B side = <b>${r1bSide}</b> · Winner: <b style="color:${m.r1Winner==='A'?'var(--blue)':'var(--orange)'};">Team ${m.r1Winner}</b>
+        ${tkR1Names.length ? `<br>&nbsp;&nbsp;&nbsp;🏅 Top Kill R1: <b>${tkR1Names.join(', ')}</b>` : ''}
+      </div>
+      <div class="md-round-line">
+        <b>🔴 R2:</b> Team A side = <b>${r2aSide}</b> · Team B side = <b>${r2bSide}</b> · Winner: <b style="color:${m.r2Winner==='A'?'var(--blue)':'var(--orange)'};">Team ${m.r2Winner}</b>
+        ${tkR2Names.length ? `<br>&nbsp;&nbsp;&nbsp;🏅 Top Kill R2: <b>${tkR2Names.join(', ')}</b>` : ''}
+      </div>
+    </div>
+
+    <div class="md-team-grid">
+      <div class="md-team-panel">
+        <div class="md-team-title a">
+          <span>🔵 TEAM A</span>
+          <span style="font-size:10px;color:var(--dim);">${m.teamA.length} người · +${tsA.totalPts}đ</span>
+        </div>
+        ${renderTeamRows(m.teamA, 'A')}
+      </div>
+      <div class="md-team-panel">
+        <div class="md-team-title b">
+          <span>🔴 TEAM B</span>
+          <span style="font-size:10px;color:var(--dim);">${m.teamB.length} người · +${tsB.totalPts}đ</span>
+        </div>
+        ${renderTeamRows(m.teamB, 'B')}
+      </div>
+    </div>
+
+    <div style="text-align:center;font-size:10px;color:var(--dim);letter-spacing:1px;padding-top:6px;">
+      💡 Điểm = Kill × 1 + Top Kill × 5 + Bonus thắng/hòa
+    </div>
+  `;
+
+  document.getElementById('match-detail-modal').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMatchDetail() {
+  document.getElementById('match-detail-modal').classList.remove('show');
+  document.body.style.overflow = '';
+}
+function closeMatchDetailIfBackdrop(e) {
+  if (e.target.id === 'match-detail-modal') closeMatchDetail();
+}
+
+// Giải thích chi tiết vì sao một người +/- bằng đó Elo trong 1 trận.
+function showEloBreakdown(idx, id) {
+  const m = state.matches[idx];
+  if (!m || !m.details || !m.details[id]) return;
+  const d = m.details[id];
+  const p = state.players[id];
+  const name = p ? p.name : '(đã xóa)';
+  const total = (typeof d.eloDelta === 'number') ? d.eloDelta : 0;
+  const rounds = d.eloRounds || {};
+
+  const fmt = n => (n>0?'+':'') + (Math.round(n*10)/10);
+  const expPct = e => Math.round(e*100);
+
+  let lines = '';
+  [1,2].forEach(rn => {
+    const r = rounds[rn];
+    if (!r) return;
+    const kqText = r.won ? 'Thắng' : 'Thua';
+    // Mô tả độ khó kèo theo kỳ vọng
+    let keo;
+    if (r.expected >= 0.65) keo = 'kèo dễ (được dự đoán thắng)';
+    else if (r.expected <= 0.35) keo = 'kèo khó (bị dự đoán thua)';
+    else keo = 'kèo cân';
+    const baseColor = r.base >= 0 ? 'var(--green)' : 'var(--red)';
+    const perfColor = r.perf >= 0 ? 'var(--green)' : 'var(--red)';
+    lines += `
+      <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;">
+        <div style="font-weight:700;color:var(--gold);margin-bottom:6px;">Round ${rn}: ${kqText} — ${keo}</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
+          <span>Kỳ vọng thắng trước round</span><span><b>${expPct(r.expected)}%</b></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
+          <span>Điểm thắng/thua (K=${r.K})</span><span style="color:${baseColor};font-weight:700;">${fmt(r.base)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
+          <span>Thưởng/phạt theo kill</span><span style="color:${perfColor};font-weight:700;">${fmt(r.perf)}</span>
+        </div>
+      </div>`;
+  });
+
+  const totalColor = total >= 0 ? 'var(--green)' : 'var(--red)';
+  const body = `
+    <div style="font-size:13px;color:var(--dim);margin-bottom:10px;">
+      Mỗi round tính riêng. Điểm thắng/thua = K × (kết quả − kỳ vọng). Thắng kèo khó được nhiều, thua kèo dễ mất nhiều. Cộng thêm thưởng/phạt theo kill so với trung bình trận.
+    </div>
+    ${lines || '<div style="color:var(--dim);">Không có dữ liệu round.</div>'}
+    <div style="border-top:2px solid var(--gold);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-weight:700;">TỔNG THAY ĐỔI ELO</span>
+      <span style="font-size:20px;font-weight:700;font-family:'Orbitron',monospace;color:${totalColor};">${fmt(total)}</span>
+    </div>
+    ${typeof d.eloAfter==='number' ? `<div style="text-align:right;font-size:12px;color:var(--dim);margin-top:4px;">Elo sau trận: <b>${Math.round(d.eloAfter)}</b></div>` : ''}
+  `;
+
+  document.getElementById('elo-bd-title').textContent = `⚡ ${name} — vì sao ${fmt(total)} Elo?`;
+  document.getElementById('elo-bd-body').innerHTML = body;
+  document.getElementById('elo-breakdown-modal').classList.add('show');
+}
+function closeEloBreakdown() {
+  document.getElementById('elo-breakdown-modal').classList.remove('show');
+}
+function closeEloBdIfBackdrop(e) {
+  if (e.target.id === 'elo-breakdown-modal') closeEloBreakdown();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  EDIT / DELETE MATCH
+// ─────────────────────────────────────────────────────────────────────
+function undoMatch(m) {
+  Object.entries(m.details || {}).forEach(([idStr, d]) => {
+    const p = state.players[idStr];
+    if (!p) return;
+    p.points = Math.max(0, p.points - (d.pts || 0));
+    p.kills  = Math.max(0, p.kills - ((d.kills_r1||0) + (d.kills_r2||0)));
+    p.matches = Math.max(0, p.matches - 1);
+    const id = parseInt(idStr);
+    const team = m.teamA.includes(id) ? 'A' : 'B';
+    if (m.matchWinner === team) p.wins = Math.max(0, p.wins - 1);
+    else if (m.matchWinner !== 'DRAW') p.losses = Math.max(0, p.losses - 1);
+  });
+}
+
+function redoMatch(m) {
+  Object.entries(m.details || {}).forEach(([idStr, d]) => {
+    const p = state.players[idStr];
+    if (!p) return;
+    p.points = Math.max(0, p.points + (d.pts || 0));
+    p.kills  = p.kills + ((d.kills_r1||0) + (d.kills_r2||0));
+    p.matches = p.matches + 1;
+    const id = parseInt(idStr);
+    const team = m.teamA.includes(id) ? 'A' : 'B';
+    if (m.matchWinner === team) p.wins++;
+    else if (m.matchWinner !== 'DRAW') p.losses++;
+  });
+  recomputeTiers();
+}
+
+function startEdit(idx) {
+  if (!isAdmin) { showToast('Chỉ Admin mới sửa được trận!', true); return; }
+  const m = state.matches[idx];
+  if (!m) return;
+  if (editingMatchIndex !== null) {
+    showToast('Đang sửa trận khác, hủy trước đã!', true);
+    return;
+  }
+  const num = state.matches.length - idx;
+  if (!confirm(`Sửa TRẬN #${num} (${m.date || ''})?\n\nĐiểm/kill/win-loss của trận này sẽ được hoàn lại để bạn nhập lại từ đầu.\n\nNếu bấm HỦY SỬA sau đó, trận sẽ được khôi phục.`)) return;
+  undoMatch(m);
+  recomputeTiers();
+  editingMatchIndex = idx;
+  state.editingMatchIndex = idx;
+  saveState();
+  switchTab('log');
+  showToast(`✓ Đang sửa TRẬN #${num}. Điểm đã được hoàn lại.`);
+}
+
+function deleteMatch(idx) {
+  if (!isAdmin) { showToast('Chỉ Admin mới xóa được trận!', true); return; }
+  const m = state.matches[idx];
+  if (!m) return;
+  if (editingMatchIndex !== null) {
+    showToast('Đang sửa trận, hủy trước khi xoá!', true);
+    return;
+  }
+  const num = state.matches.length - idx;
+  if (!confirm(`Xoá TRẬN #${num} (${m.date || ''})?\n\nĐiểm/kill/win-loss của trận này sẽ được trừ về trạng thái trước trận. Hành động không thể hoàn tác.`)) return;
+  undoMatch(m);
+  state.matches.splice(idx, 1);
+  recomputeTiers();
+  saveState();
+  renderHistory();
+  showToast(`✓ Đã xoá TRẬN #${num}`);
+}
+
+function showToast(msg, isError=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError?' err':'');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+function resetData() {
+  if (!isAdmin) { showToast('Chỉ Admin mới reset được!', true); return; }
+  if (!confirm('⚠ Reset TOÀN BỘ dữ liệu?\n\n• Toàn bộ người chơi\n• Toàn bộ lịch sử trận\n• Toàn bộ điểm\n• Mật khẩu Admin sẽ về default "cs16admin"\n• Data trên Firebase cũng bị xóa\n\nKHÔNG THỂ HOÀN TÁC! Nên Export Backup trước!')) return;
+  localStorage.removeItem(LS_KEY);
+  sessionStorage.removeItem('cs16_admin');
+  isAdmin = false;
+  state = loadState();
+  // Also clear Firebase
+  if (firebaseEnabled && firebaseDB) {
+    firebaseDB.ref(FB_PATH).remove().catch(err => console.error('[Firebase] Reset failed:', err));
+  }
+  applyAuthUI();
+  showToast('Đã reset toàn bộ!');
+  switchTab('leaderboard');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  SAVE LINEUP
+// ─────────────────────────────────────────────────────────────────────
+function saveLineup() {
+  if (!selA.size || !selB.size) {
+    showToast('Cần chọn người chơi cả 2 team!', true);
+    return;
+  }
+  state.savedLineup = {
+    date: document.getElementById('match-date').value || '',
+    teamA: [...selA],
+    teamB: [...selB],
+    savedAt: Date.now()
+  };
+  saveState();
+  updateSavedLineupInfo();
+  showToast('✓ Đã lưu đội hình! Lần sau mở lại sẽ tự khôi phục.');
+}
+
+function clearSavedLineup() {
+  if (!confirm('Xóa đội hình đã lưu?')) return;
+  delete state.savedLineup;
+  saveState();
+  updateSavedLineupInfo();
+  showToast('Đã xóa đội hình lưu.');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  EXPORT LINEUP PNG
+// ─────────────────────────────────────────────────────────────────────
+function exportLineupPNG() {
+  if (!selA.size || !selB.size) {
+    showToast('Cần chọn người chơi cả 2 team!', true);
+    return;
+  }
+
+  const playersA = [...selA].map(id => state.players[id]);
+  const playersB = [...selB].map(id => state.players[id]);
+  const maxN = Math.max(playersA.length, playersB.length);
+
+  const W = 1100;
+  const ROW_H = 38;
+  const HEADER_H = 130;
+  const CARD_TOP = HEADER_H + 24;
+  const CARD_HEADER_H = 96;
+  const CARD_PAD_BOTTOM = 20;
+  const CARDS_H = CARD_HEADER_H + maxN * ROW_H + CARD_PAD_BOTTOM;
+  const FOOTER_H = 56;
+  const H = CARD_TOP + CARDS_H + FOOTER_H;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = '#1a1f2e';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = '#252b3d';
+  ctx.lineWidth = 1;
+  for (let row = -1; row < H/34 + 2; row++) {
+    for (let col = -1; col < W/40 + 2; col++) {
+      const cx = col*40 + (row%2 ? 20 : 0);
+      const cy = row*34;
+      drawHexPath(ctx, cx, cy, 18);
+      ctx.stroke();
+    }
+  }
+
+  ctx.fillStyle = '#f5b942';
+  ctx.font = 'bold 38px Orbitron, "Share Tech Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(245,185,66,0.4)';
+  ctx.shadowBlur = 18;
+  ctx.fillText('CS 1.6  BATTLE SETUP', W/2, 48);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#a0aac0';
+  ctx.font = '12px "Share Tech Mono", monospace';
+  ctx.fillText('TEAM LINEUP // PRE-MATCH PREVIEW', W/2, 78);
+
+  const dateVal = document.getElementById('match-date').value;
+  if (dateVal) {
+    ctx.fillStyle = '#f5b942';
+    ctx.font = 'bold 14px "Share Tech Mono", monospace';
+    ctx.fillText(`📅 ${dateVal}`, W/2, 102);
+  }
+
+  const gradient = ctx.createLinearGradient(80, 0, W-80, 0);
+  gradient.addColorStop(0, 'rgba(245,185,66,0)');
+  gradient.addColorStop(0.5, 'rgba(245,185,66,1)');
+  gradient.addColorStop(1, 'rgba(245,185,66,0)');
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(80, 122);
+  ctx.lineTo(W-80, 122);
+  ctx.stroke();
+
+  const cardW = (W - 90) / 2;
+  drawTeamCard(ctx, 30, CARD_TOP, cardW, CARDS_H, 'A', playersA, '#5cb4ff', 'rgba(92,180,255,0.08)');
+  drawTeamCard(ctx, 30 + cardW + 30, CARD_TOP, cardW, CARDS_H, 'B', playersB, '#ff9966', 'rgba(255,153,102,0.08)');
+
+  const vsX = W/2, vsY = CARD_TOP + CARDS_H/2;
+  ctx.fillStyle = '#1a1f2e';
+  ctx.beginPath();
+  ctx.arc(vsX, vsY, 26, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#f5b942';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#f5b942';
+  ctx.font = 'bold 18px Orbitron, monospace';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(245,185,66,0.6)';
+  ctx.shadowBlur = 12;
+  ctx.fillText('VS', vsX, vsY + 1);
+  ctx.shadowBlur = 0;
+
+  ctx.strokeStyle = '#3d4860';
+  ctx.beginPath();
+  ctx.moveTo(40, H - 36);
+  ctx.lineTo(W - 40, H - 36);
+  ctx.stroke();
+
+  ctx.fillStyle = '#a0aac0';
+  ctx.font = '11px "Share Tech Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('GOOD LUCK  //  HAVE FUN  //  NO RAGE QUIT', W/2, H - 18);
+
+  const fname = `cs16_lineup_${(dateVal||new Date().toLocaleDateString('vi-VN')).replace(/[/\\]/g, '-')}.png`;
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✓ Đã xuất ảnh đội hình!');
+  }, 'image/png');
+}
+
+function drawHexPath(ctx, cx, cy, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (60*i - 30) * Math.PI / 180;
+    const x = cx + r*Math.cos(a);
+    const y = cy + r*Math.sin(a);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+function drawTeamCard(ctx, x, y, w, h, team, players, color, bgTint) {
+  ctx.fillStyle = '#252b3d';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = bgTint;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+
+  ctx.fillStyle = color;
+  ctx.font = 'bold 24px Orbitron, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`${team === 'A' ? '🔵' : '🔴'}  TEAM ${team}`, x + 20, y + 30);
+
+  const tierArr = players.map(p => p.tier).filter(t => t != null);
+  const avgTier = tierArr.length ? (tierArr.reduce((a,b)=>a+b,0)/tierArr.length).toFixed(2) : '—';
+  const tankerCount = players.filter(p => p.tanker).length;
+
+  ctx.font = '11px "Share Tech Mono", monospace';
+  ctx.textAlign = 'left';
+  const stats = [
+    { lbl: 'Quân số', val: String(players.length) },
+    { lbl: 'Tier TB', val: avgTier },
+    { lbl: 'Tanker', val: String(tankerCount) },
+  ];
+  let sx = x + 20;
+  const sy = y + 62;
+  stats.forEach(({lbl, val}) => {
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    const boxW = 110;
+    ctx.fillRect(sx, sy - 11, boxW, 22);
+    ctx.strokeRect(sx, sy - 11, boxW, 22);
+    ctx.fillStyle = '#a0aac0';
+    ctx.fillText(lbl + ':', sx + 7, sy + 1);
+    ctx.fillStyle = '#f5b942';
+    ctx.font = 'bold 12px "Share Tech Mono", monospace';
+    ctx.fillText(val, sx + 60, sy + 1);
+    ctx.font = '11px "Share Tech Mono", monospace';
+    sx += boxW + 6;
+  });
+
+  ctx.strokeStyle = 'rgba(160,170,192,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x + 18, y + 88);
+  ctx.lineTo(x + w - 18, y + 88);
+  ctx.stroke();
+
+  const tierColors = {1:'#7c3aed', 2:'#0d9488', 3:'#d97706', 4:'#dc2626'};
+  players.forEach((p, i) => {
+    const rowY = y + 96 + i * 38;
+
+    if (i % 2 === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.025)';
+      ctx.fillRect(x + 12, rowY, w - 24, 34);
+    }
+
+    ctx.fillStyle = '#5a6478';
+    ctx.font = 'bold 11px "Share Tech Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(String(i+1).padStart(2,'0'), x + 38, rowY + 17);
+
+    const hexFill = p.tier ? tierColors[p.tier] : 'rgba(160,170,192,0.25)';
+    drawHexPath(ctx, x + 60, rowY + 17, 13);
+    ctx.fillStyle = hexFill;
+    ctx.fill();
+    if (p.tier) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = p.tier ? '#ffffff' : '#a0aac0';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.tier || '—', x + 60, rowY + 18);
+
+    ctx.fillStyle = '#e8edf5';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(p.name, x + 82, rowY + 18);
+
+    if (p.tanker) {
+      const nameW = ctx.measureText(p.name).width;
+      const tagX = x + 82 + nameW + 10;
+      const tagY = rowY + 7;
+      const tagW = 52;
+      const tagH = 20;
+      ctx.fillStyle = 'rgba(255,85,85,0.18)';
+      ctx.fillRect(tagX, tagY, tagW, tagH);
+      ctx.strokeStyle = '#ff5555';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tagX, tagY, tagW, tagH);
+      ctx.fillStyle = '#ffaaaa';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('TANKER', tagX + tagW/2, tagY + tagH/2 + 1);
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  EXPORT LEADERBOARD PNG
+// ─────────────────────────────────────────────────────────────────────
+function exportLeaderboardPNG() {
+  const players = Object.values(state.players).sort((a,b) => b.points - a.points);
+  if (players.length === 0) {
+    showToast('Không có dữ liệu để xuất!', true);
+    return;
+  }
+
+  const W = 1100;
+  const ROW_H = 42;
+  const HEADER_H = 130;
+  const TABLE_HEADER_H = 38;
+  const TABLE_TOP = HEADER_H + 30;
+  const FOOTER_H = 50;
+  const H = TABLE_TOP + TABLE_HEADER_H + players.length * ROW_H + 30 + FOOTER_H;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = '#1a1f2e';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = '#252b3d';
+  ctx.lineWidth = 1;
+  for (let row = -1; row < H/34 + 2; row++) {
+    for (let col = -1; col < W/40 + 2; col++) {
+      const cx = col*40 + (row%2 ? 20 : 0);
+      const cy = row*34;
+      drawHexPath(ctx, cx, cy, 18);
+      ctx.stroke();
+    }
+  }
+
+  ctx.fillStyle = '#f5b942';
+  ctx.font = 'bold 38px Orbitron, "Share Tech Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(245,185,66,0.4)';
+  ctx.shadowBlur = 18;
+  ctx.fillText('CS 1.6  LEADERBOARD', W/2, 48);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#a0aac0';
+  ctx.font = '12px "Share Tech Mono", monospace';
+  const totalMatches = state.matches ? state.matches.length : 0;
+  ctx.fillText(`SQUAD RANKING // ${players.length} PLAYERS // ${totalMatches} MATCHES PLAYED`, W/2, 78);
+
+  ctx.fillStyle = '#f5b942';
+  ctx.font = 'bold 14px "Share Tech Mono", monospace';
+  ctx.fillText(`📅 ${new Date().toLocaleString('vi-VN')}`, W/2, 102);
+
+  const gradient = ctx.createLinearGradient(80, 0, W-80, 0);
+  gradient.addColorStop(0, 'rgba(245,185,66,0)');
+  gradient.addColorStop(0.5, 'rgba(245,185,66,1)');
+  gradient.addColorStop(1, 'rgba(245,185,66,0)');
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(80, 122);
+  ctx.lineTo(W-80, 122);
+  ctx.stroke();
+
+  const cols = {
+    rank:   60,
+    tier:   110,
+    name:   165,
+    points: 580,
+    matches:670,
+    wins:   750,
+    losses: 820,
+    badge:  900,
+  };
+
+  ctx.fillStyle = '#2d3447';
+  ctx.fillRect(30, TABLE_TOP, W - 60, TABLE_HEADER_H);
+  ctx.strokeStyle = '#3d4860';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(30, TABLE_TOP, W - 60, TABLE_HEADER_H);
+
+  ctx.fillStyle = '#a0aac0';
+  ctx.font = 'bold 11px "Share Tech Mono", monospace';
+  const hY = TABLE_TOP + TABLE_HEADER_H/2;
+  ctx.textAlign = 'center'; ctx.fillText('#',     cols.rank, hY);
+  ctx.fillText('TIER',                            cols.tier, hY);
+  ctx.textAlign = 'left';   ctx.fillText('TÊN',  cols.name, hY);
+  ctx.textAlign = 'center'; ctx.fillText('ĐIỂM', cols.points, hY);
+  ctx.fillText('TRẬN',                            cols.matches, hY);
+  ctx.fillText('THẮNG',                           cols.wins, hY);
+  ctx.fillText('THUA',                            cols.losses, hY);
+  ctx.fillText('HẠNG',                            cols.badge, hY);
+
+  const tierColors = {1:'#7c3aed', 2:'#0d9488', 3:'#d97706', 4:'#dc2626'};
+  const badgeStyles = {
+    'Global Elite': { color:'#ffe066', bg:'rgba(255,215,0,0.15)', border:'#ffd700' },
+    'Supreme':      { color:'#f0f0f0', bg:'rgba(216,216,216,0.15)', border:'#d8d8d8' },
+    'Eagle':        { color:'#9fd0ff', bg:'rgba(92,180,255,0.15)', border:'#5cb4ff' },
+    'Rookie':       { color:'#9fffbb', bg:'rgba(61,220,110,0.15)', border:'#3ddc6e' },
+    'Recruit':      { color:'#c0c8d8', bg:'rgba(160,170,192,0.12)', border:'#a0aac0' },
+  };
+
+  players.forEach((p, i) => {
+    const rank = i + 1;
+    const rowY = TABLE_TOP + TABLE_HEADER_H + i * ROW_H;
+    const midY = rowY + ROW_H/2;
+    const badge = getBadge(p.points);
+
+    let rowBg = '#252b3d';
+    let leftBar = '#3d4860';
+    if (rank === 1) { rowBg = '#3a3520'; leftBar = '#ffd700'; }
+    else if (rank === 2) { rowBg = '#2d3140'; leftBar = '#c0c0c0'; }
+    else if (rank === 3) { rowBg = '#36281c'; leftBar = '#cd7f32'; }
+    else if (i % 2 === 1) { rowBg = '#1f2435'; }
+
+    ctx.fillStyle = rowBg;
+    ctx.fillRect(30, rowY, W - 60, ROW_H);
+
+    ctx.fillStyle = leftBar;
+    ctx.fillRect(30, rowY, 3, ROW_H);
+
+    let rankColor = '#a0aac0';
+    if (rank === 1) rankColor = '#ffd700';
+    else if (rank === 2) rankColor = '#e0e0e0';
+    else if (rank === 3) rankColor = '#e29a52';
+    ctx.fillStyle = rankColor;
+    ctx.font = 'bold 16px Orbitron, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(rank), cols.rank, midY);
+
+    const hexFill = p.tier ? tierColors[p.tier] : 'rgba(160,170,192,0.25)';
+    drawHexPath(ctx, cols.tier, midY, 13);
+    ctx.fillStyle = hexFill;
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(p.tier || '—', cols.tier, midY + 1);
+
+    ctx.fillStyle = '#e8edf5';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(p.name, cols.name, midY);
+
+    if (p.tanker) {
+      const nameW = ctx.measureText(p.name).width;
+      const tagX = cols.name + nameW + 8;
+      const tagY = midY - 9;
+      ctx.fillStyle = 'rgba(255,85,85,0.2)';
+      ctx.fillRect(tagX, tagY, 42, 18);
+      ctx.strokeStyle = '#ff5555';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tagX, tagY, 42, 18);
+      ctx.fillStyle = '#ffaaaa';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('TANK', tagX + 21, midY + 1);
+    }
+
+    ctx.fillStyle = '#f5b942';
+    ctx.font = 'bold 16px Orbitron, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(p.points), cols.points, midY);
+
+    ctx.fillStyle = '#e8edf5';
+    ctx.font = '13px "Share Tech Mono", monospace';
+    ctx.fillText(String(p.matches), cols.matches, midY);
+
+    ctx.fillStyle = '#9fffbb';
+    ctx.font = 'bold 13px "Share Tech Mono", monospace';
+    ctx.fillText(String(p.wins), cols.wins, midY);
+
+    ctx.fillStyle = '#ffaaaa';
+    ctx.fillText(String(p.losses), cols.losses, midY);
+
+    const bStyle = badgeStyles[badge.label] || badgeStyles['Recruit'];
+    const bX = cols.badge - 60;
+    const bY = midY - 11;
+    ctx.fillStyle = bStyle.bg;
+    ctx.fillRect(bX, bY, 120, 22);
+    ctx.strokeStyle = bStyle.border;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bX, bY, 120, 22);
+    ctx.fillStyle = bStyle.color;
+    ctx.font = 'bold 10px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(badge.label.toUpperCase(), bX + 60, midY + 1);
+  });
+
+  const fY = TABLE_TOP + TABLE_HEADER_H + players.length * ROW_H + 30;
+  ctx.strokeStyle = '#3d4860';
+  ctx.beginPath();
+  ctx.moveTo(40, fY);
+  ctx.lineTo(W - 40, fY);
+  ctx.stroke();
+
+  ctx.fillStyle = '#a0aac0';
+  ctx.font = '11px "Share Tech Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('GOOD LUCK  //  HAVE FUN  //  KEEP GRINDING', W/2, fY + 18);
+
+  const ts = new Date().toISOString().slice(0,10);
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cs16_leaderboard_${ts}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✓ Đã xuất ảnh bảng xếp hạng!');
+  }, 'image/png');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  TEAM SPLIT
+// ─────────────────────────────────────────────────────────────────────
+let participantSet = new Set();
+let lastDistribution = null;
+
+function renderTeamSplit() {
+  renderTSRoster();
+  renderTSResult();
+}
+
+function renderTSRoster() {
+  const players = Object.values(state.players)
+    .filter(p => p && typeof p === 'object' && p.name)
+    .sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  const grid = document.getElementById('ts-roster');
+  grid.innerHTML = players.map(p => {
+    const sel = participantSet.has(p.id);
+    const tCls = p.tier ? `t${p.tier}` : 't-empty';
+    const tLab = p.tier ? p.tier : '—';
+    const tankerInd = p.tanker ? ' 🛡' : '';
+    return `<button class="pbtn ${sel?'sel-ts':''}" onclick="toggleParticipant(${p.id})">
+      <span class="tier-mini ${tCls}">${tLab}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}${tankerInd}</span>
+      <span class="pbtn-pts">⚡${Math.round(typeof p.rating==='number'?p.rating:ELO.start)}</span>
+    </button>`;
+  }).join('');
+  document.getElementById('ts-count').textContent = participantSet.size;
+  const btn = document.getElementById('ts-distribute-btn');
+  if (btn) btn.disabled = participantSet.size < 2;
+}
+
+function toggleParticipant(id) {
+  if (participantSet.has(id)) participantSet.delete(id);
+  else participantSet.add(id);
+  renderTSRoster();
+}
+
+function selectAllParticipants() {
+  Object.values(state.players)
+    .filter(p => p && typeof p === 'object' && p.name)
+    .forEach(p => participantSet.add(p.id));
+  renderTSRoster();
+  showToast('✓ Đã chọn tất cả ' + participantSet.size + ' người');
+}
+
+function resetParticipants() {
+  participantSet.clear();
+  lastDistribution = null;
+  const resultCard = document.getElementById('ts-result-card');
+  if (resultCard) resultCard.style.display = 'none';
+  renderTSRoster();
+  showToast('✗ Đã bỏ chọn hết, chia lại từ đầu');
+}
+
+function playerScore(p) {
+  // Chia team theo RATING (thực lực thật), không theo điểm tích lũy nữa.
+  // Người giỏi nghỉ vài tuần quay lại vẫn đúng thực lực → team vẫn cân.
+  return (typeof p.rating === 'number') ? p.rating : ELO.start;
+}
+
+function distributeTeams() {
+  if (participantSet.size < 2) { showToast('Cần chọn ít nhất 2 người!', true); return; }
+
+  const players = [...participantSet].map(id => state.players[id]).filter(Boolean);
+
+  const sorted = [...players]
+    .sort(() => Math.random() - 0.5)
+    .sort((a, b) => playerScore(b) - playerScore(a));
+
+  const teamA = [], teamB = [];
+  let sumA = 0, sumB = 0;
+
+  for (const p of sorted) {
+    const s = playerScore(p);
+    const sizeDiff = teamA.length - teamB.length;
+    if (sizeDiff >= 1) { teamB.push(p); sumB += s; }
+    else if (sizeDiff <= -1) { teamA.push(p); sumA += s; }
+    else if (sumA <= sumB) { teamA.push(p); sumA += s; }
+    else { teamB.push(p); sumB += s; }
+  }
+
+  let iter = 0;
+  while (iter < 50) {
+    iter++;
+    let bestSwap = null, bestImprov = 0;
+    for (let i = 0; i < teamA.length; i++) {
+      for (let j = 0; j < teamB.length; j++) {
+        const sA = playerScore(teamA[i]), sB = playerScore(teamB[j]);
+        const curDiff = Math.abs(sumA - sumB);
+        const newSumA = sumA - sA + sB;
+        const newSumB = sumB - sB + sA;
+        const newDiff = Math.abs(newSumA - newSumB);
+        const improv = curDiff - newDiff;
+        if (improv > bestImprov + 0.001) {
+          bestImprov = improv;
+          bestSwap = { i, j, sA, sB };
+        }
+      }
+    }
+    if (!bestSwap) break;
+    const { i, j, sA, sB } = bestSwap;
+    [teamA[i], teamB[j]] = [teamB[j], teamA[i]];
+    sumA = sumA - sA + sB;
+    sumB = sumB - sB + sA;
+  }
+
+  lastDistribution = {
+    teamA: teamA.map(p => p.id),
+    teamB: teamB.map(p => p.id),
+  };
+  renderTSResult();
+  setTimeout(() => {
+    const card = document.getElementById('ts-result-card');
+    if (card) card.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 100);
+}
+
+function renderTSResult() {
+  const card = document.getElementById('ts-result-card');
+  if (!lastDistribution) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  const compute = (ids) => {
+    const ps = ids.map(id => state.players[id]).filter(Boolean);
+    const sumPts = ps.reduce((s,p) => s + (p.points||0), 0);
+    const avgPts = ps.length ? Math.round(sumPts/ps.length) : 0;
+    // Elo (rating) — đây mới là con số thuật toán dùng để cân team
+    const sumElo = Math.round(ps.reduce((s,p) => s + (typeof p.rating==='number'?p.rating:ELO.start), 0));
+    const avgElo = ps.length ? Math.round(sumElo/ps.length) : 0;
+    const tiers = ps.map(p => p.tier).filter(t => t != null);
+    const avgT = tiers.length ? (tiers.reduce((s,t)=>s+t,0)/tiers.length).toFixed(2) : '—';
+    const tanker = ps.filter(p => p.tanker).length;
+    return { ps, sumPts, avgPts, sumElo, avgElo, avgT, count: ps.length, tanker };
+  };
+
+  const a = compute(lastDistribution.teamA);
+  const b = compute(lastDistribution.teamB);
+
+  const renderPanel = (tm, st) => {
+    document.getElementById(`ts-${tm}-stats`).innerHTML =
+      `<span class="ts-stat-item">Quân số: <b>${st.count}</b></span>
+       <span class="ts-stat-item">⚡ Elo TB: <b>${st.avgElo}</b></span>
+       <span class="ts-stat-item">Elo tổng: <b>${st.sumElo}</b></span>
+       <span class="ts-stat-item">Tier TB: <b>${st.avgT}</b></span>
+       <span class="ts-stat-item">Tanker: <b>${st.tanker}</b></span>`;
+    const sortedPs = [...st.ps].sort((p1,p2) => playerScore(p2) - playerScore(p1));
+    document.getElementById(`ts-${tm}-players`).innerHTML = sortedPs.map(p => {
+      const tCls = p.tier ? `t${p.tier}` : 't-empty';
+      const tLab = p.tier ? p.tier : '—';
+      const r = Math.round(typeof p.rating==='number'?p.rating:ELO.start);
+      return `<div class="ts-player-row">
+        <span class="tier-mini ${tCls}">${tLab}</span>
+        <span>${p.name}${p.tanker?' <span class="tanker-tag">TANK</span>':''}</span>
+        <span class="pts">⚡${r}</span>
+      </div>`;
+    }).join('');
+  };
+  renderPanel('a', a); renderPanel('b', b);
+
+  const diff = Math.abs(a.avgElo - b.avgElo);
+  const ratingDiff = Math.abs(
+    a.ps.reduce((s,p)=>s+playerScore(p),0) -
+    b.ps.reduce((s,p)=>s+playerScore(p),0)
+  );
+  let balanceText, balanceColor;
+  if (ratingDiff < 50) { balanceText = '⚖️ CÂN BẰNG TUYỆT VỜI'; balanceColor = 'var(--green)'; }
+  else if (ratingDiff < 150) { balanceText = '✓ Cân bằng tốt'; balanceColor = 'var(--gold)'; }
+  else if (ratingDiff < 300) { balanceText = '⚠ Hơi lệch'; balanceColor = 'var(--orange)'; }
+  else { balanceText = '⚠ Lệch nhiều — thử chia lại'; balanceColor = 'var(--red)'; }
+
+  document.getElementById('ts-balance').innerHTML =
+    `<div style="color:${balanceColor};font-family:'Orbitron',monospace;font-weight:700;letter-spacing:2px;margin-bottom:4px;">${balanceText}</div>
+     Chênh Elo TB: <b>${diff}</b> · Chênh Elo tổng: <b>${Math.round(ratingDiff)}</b>`;
+}
+
+function applyDistribution() {
+  if (!lastDistribution) return;
+  if (editingMatchIndex !== null) {
+    showToast('Đang sửa trận, hủy trước khi áp dụng đội hình mới!', true);
+    return;
+  }
+  state.savedLineup = {
+    date: '',
+    teamA: [...lastDistribution.teamA],
+    teamB: [...lastDistribution.teamB],
+    savedAt: Date.now()
+  };
+  delete state.draft;
+  saveState();
+  showToast('✓ Đã áp dụng đội hình! Chuyển sang tab Nhập Trận.');
+  setTimeout(() => switchTab('log'), 800);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  MANAGE PAGE (with inline name editing)
+// ─────────────────────────────────────────────────────────────────────
+function renderManage() {
+  const sorted = Object.values(state.players)
+    .filter(p => p && typeof p === 'object')
+    .sort((a,b)=>a.id - b.id);
+  const list = document.getElementById('manage-list');
+  list.innerHTML = `
+    <div style="margin-bottom:10px;text-align:center;">
+      <button class="action-btn" style="padding:8px 16px;font-size:10px;min-height:38px;border-color:#5cb4ff;color:#5cb4ff;" onclick="autoGenerateCodes()">🔢 Tạo mã tự động (cho người chưa có)</button>
+    </div>
+    <div class="manage-header">
+      <div style="text-align:center;">STT</div>
+      <div style="text-align:center;">TIER</div>
+      <div>TÊN (click để sửa)</div>
+      <div style="text-align:center;">MÃ SỐ</div>
+      <div style="text-align:center;">ĐIỂM</div>
+      <div style="text-align:center;">TANKER</div>
+      <div style="text-align:center;">XÓA</div>
+    </div>
+  ` + sorted.map((p,i) => `
+    <div class="manage-row">
+      <div class="stt">${i+1}</div>
+      <select class="tier-select" id="mng-tier-${p.id}">
+        <option value=""  ${p.tier==null?'selected':''}>— Chưa set</option>
+        <option value="1" ${p.tier===1?'selected':''}>Tier 1</option>
+        <option value="2" ${p.tier===2?'selected':''}>Tier 2</option>
+        <option value="3" ${p.tier===3?'selected':''}>Tier 3</option>
+        <option value="4" ${p.tier===4?'selected':''}>Tier 4</option>
+      </select>
+      <input type="text" class="name-input" id="mng-name-${p.id}" value="${escapeHtml(p.name)}" maxlength="40" title="Click để sửa tên">
+      <input type="text" id="mng-code-${p.id}" value="${escapeHtml(p.code||'')}" maxlength="8" placeholder="—" title="Mã số để map nickname" style="width:100%;background:#1a2030;border:1px solid var(--border);color:#5cb4ff;font-family:'Share Tech Mono',monospace;font-size:13px;padding:9px 6px;outline:none;text-align:center;font-weight:700;min-height:38px;">
+      <input type="number" id="mng-pts-${p.id}" min="0" value="${p.points}">
+      <div class="tanker-toggle">
+        <input type="checkbox" id="mng-tank-${p.id}" ${p.tanker?'checked':''}>
+      </div>
+      <button class="del-btn" onclick="deletePlayer(${p.id})" title="Xóa người chơi">🗑</button>
+    </div>
+  `).join('');
+}
+
+// Auto-generate unique 4-digit codes for players that don't have one yet
+function autoGenerateCodes() {
+  const used = new Set(
+    Object.values(state.players)
+      .filter(p => p && p.code)
+      .map(p => String(p.code))
+  );
+  let generated = 0;
+  Object.values(state.players).forEach(p => {
+    if (!p || (p.code && String(p.code).trim())) return;
+    let code;
+    do { code = String(Math.floor(1000 + Math.random() * 9000)); } while (used.has(code));
+    used.add(code);
+    p.code = code;
+    generated++;
+  });
+  if (generated === 0) {
+    showToast('Tất cả người chơi đã có mã số rồi');
+    return;
+  }
+  saveState();
+  renderManage();
+  showToast(`✓ Đã tạo mã cho ${generated} người chơi`);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function applyPreset() {
+  const presets = {
+    1: parseInt(document.getElementById('preset-t1').value) || 0,
+    2: parseInt(document.getElementById('preset-t2').value) || 0,
+    3: parseInt(document.getElementById('preset-t3').value) || 0,
+    4: parseInt(document.getElementById('preset-t4').value) || 0,
+  };
+  const noTier = Object.values(state.players).filter(p => p.tier == null);
+  let warn = '';
+  if (noTier.length > 0) {
+    warn = `\n\n⚠ ${noTier.length} người chơi CHƯA có Tier — họ sẽ bị bỏ qua. Hãy set Tier trước khi áp dụng.`;
+  }
+  if (!confirm(`Áp dụng điểm khởi đầu:\n• Tier 1 → ${presets[1]}\n• Tier 2 → ${presets[2]}\n• Tier 3 → ${presets[3]}\n• Tier 4 → ${presets[4]}${warn}\n\nĐiểm hiện tại sẽ bị ghi đè. Tiếp tục?`)) return;
+  Object.values(state.players).forEach(p => {
+    if (p.tier != null) {
+      p.points = presets[p.tier] || 0;
+      p.prevTier = p.tier;
+    }
+  });
+  saveState();
+  showToast('✓ Đã áp dụng preset theo Tier!');
+  renderManage();
+}
+
+function saveManageChanges() {
+  // First, collect proposed names and check for duplicates
+  const proposed = {};
+  for (const p of Object.values(state.players)) {
+    const nameEl = document.getElementById(`mng-name-${p.id}`);
+    if (nameEl) {
+      const newName = nameEl.value.trim();
+      if (!newName) {
+        showToast(`Tên trống cho ID #${p.id} — không hợp lệ!`, true);
+        nameEl.focus();
+        return;
+      }
+      proposed[p.id] = newName;
+    } else {
+      proposed[p.id] = p.name;
+    }
+  }
+  // Check duplicate names among proposed
+  const seen = {};
+  for (const [id, nm] of Object.entries(proposed)) {
+    const key = nm.toLowerCase();
+    if (seen[key]) {
+      showToast(`Tên trùng: "${nm}" — đặt tên khác đi!`, true);
+      const el = document.getElementById(`mng-name-${id}`);
+      if (el) el.focus();
+      return;
+    }
+    seen[key] = id;
+  }
+
+  // All good — apply changes
+  Object.values(state.players).forEach(p => {
+    const ptsEl = document.getElementById(`mng-pts-${p.id}`);
+    const tankEl = document.getElementById(`mng-tank-${p.id}`);
+    const tierEl = document.getElementById(`mng-tier-${p.id}`);
+    const codeEl = document.getElementById(`mng-code-${p.id}`);
+    if (proposed[p.id]) p.name = proposed[p.id];
+    if (ptsEl) p.points = Math.max(0, parseInt(ptsEl.value) || 0);
+    if (tankEl) p.tanker = tankEl.checked;
+    if (codeEl) p.code = codeEl.value.trim();
+    if (tierEl) {
+      const v = tierEl.value;
+      p.tier = v === '' ? null : parseInt(v);
+      p.prevTier = p.tier;
+    }
+  });
+  saveState();
+  showToast('✓ Đã lưu thay đổi!');
+  renderManage();
+}
+
+function addPlayer() {
+  const nameEl = document.getElementById('new-player-name');
+  const tierEl = document.getElementById('new-player-tier');
+  const tankEl = document.getElementById('new-player-tanker');
+  const name = nameEl.value.trim();
+  if (!name) { showToast('Vui lòng nhập tên người chơi!', true); nameEl.focus(); return; }
+
+  const exists = Object.values(state.players).some(p => p.name.toLowerCase() === name.toLowerCase());
+  if (exists && !confirm(`Tên "${name}" đã có trong danh sách. Vẫn thêm?`)) return;
+
+  const ids = Object.keys(state.players).map(id => parseInt(id));
+  const newId = (ids.length ? Math.max(...ids) : 0) + 1;
+
+  const tierVal = tierEl.value;
+  const tier = tierVal === '' ? null : parseInt(tierVal);
+
+  state.players[newId] = {
+    id: newId, name, tier, tanker: tankEl.checked,
+    points: 0, wins: 0, losses: 0, kills: 0, matches: 0,
+    prevTier: tier
+  };
+  saveState();
+
+  nameEl.value = '';
+  tierEl.value = '';
+  tankEl.checked = false;
+  nameEl.focus();
+
+  showToast(`✓ Đã thêm "${name}" vào danh sách!`);
+  renderManage();
+}
+
+function deletePlayer(id) {
+  const p = state.players[id];
+  if (!p) return;
+  if (p.matches > 0) {
+    if (!confirm(`⚠ "${p.name}" đã chơi ${p.matches} trận!\n\nXoá sẽ làm:\n• Mất toàn bộ điểm/thống kê của họ\n• Lịch sử trận đấu vẫn giữ nguyên nhưng hiển thị "?" thay vì tên\n\nVẫn muốn xoá?`)) return;
+  } else {
+    if (!confirm(`Xoá "${p.name}" khỏi danh sách?`)) return;
+  }
+
+  delete state.players[id];
+  participantSet.delete(id);
+  selA.delete(id);
+  selB.delete(id);
+
+  recomputeTiers();
+  saveState();
+  showToast(`✓ Đã xoá "${p.name}"`);
+  renderManage();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  EXPORT / IMPORT DATA
+// ─────────────────────────────────────────────────────────────────────
+function exportData() {
+  const dataStr = JSON.stringify(state, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const ts = new Date().toISOString().slice(0,10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cs16_backup_${ts}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('✓ Đã xuất backup JSON!');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported.players || typeof imported.players !== 'object') {
+        showToast('File không đúng định dạng!', true);
+        return;
+      }
+      const playerCount = Object.keys(imported.players).length;
+      const matchCount = (imported.matches || []).length;
+      if (!confirm(`Import dữ liệu:\n• ${playerCount} người chơi\n• ${matchCount} trận đấu\n\n⚠ Dữ liệu hiện tại sẽ bị ghi đè. Tiếp tục?`)) {
+        event.target.value = '';
+        return;
+      }
+      state = imported;
+      if (!state.matches) state.matches = [];
+      if (!state.auth) state.auth = { password: DEFAULT_ADMIN_PASSWORD };
+      saveState();
+      showToast('✓ Đã import dữ liệu thành công!');
+      renderManage();
+      renderLeaderboard();
+    } catch (err) {
+      showToast('Lỗi đọc file: ' + err.message, true);
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  KEYBOARD SHORTCUTS
+// ─────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const matchModal = document.getElementById('match-detail-modal');
+    const authModal = document.getElementById('auth-modal');
+    if (matchModal && matchModal.classList.contains('show')) closeMatchDetail();
+    else if (authModal && authModal.classList.contains('show')) closeAuthModal();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────────────────────────────
+applyAuthUI();
+maybeMigrateRatings();  // migrate v33 → rating Elo nếu cần (offline/local path)
+renderLeaderboard();
+updateSyncBadge();   // show "connecting" initially
+initFirebase();      // start Firebase sync (async)
+</script>
+</body>
+</html>
