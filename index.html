@@ -237,6 +237,7 @@ header{text-align:center;padding:24px 16px 14px;border-bottom:1px solid var(--bo
 .tier-hex{width:28px;height:28px;display:flex;align-items:center;justify-content:center;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);font-size:12px;font-weight:700;flex-shrink:0;}
 .t1{background:#7c3aed;color:#fff;} .t2{background:#0d9488;color:#fff;} .t3{background:#d97706;color:#fff;} .t4{background:#dc2626;color:#fff;}
 .t-empty{background:rgba(160,170,192,0.15);color:var(--dim);font-weight:400;}
+.t1-text{color:#a78bfa;} .t2-text{color:#2dd4bf;} .t3-text{color:#fbbf24;} .t4-text{color:#f87171;}
 .player-name{font-size:13px;color:var(--text);letter-spacing:1px;}
 .tanker-tag{display:inline-block;font-size:9px;padding:2px 6px;border:1px solid var(--red);color:#ffaaaa;margin-left:6px;vertical-align:middle;background:rgba(255,85,85,0.15);font-weight:700;}
 .stat-cell{text-align:center;font-size:13px;color:var(--text);}
@@ -1105,15 +1106,6 @@ header{text-align:center;padding:24px 16px 14px;border-bottom:1px solid var(--bo
     • <b>Tier & Chia team</b> tính theo <b>Rating kỹ năng (Elo)</b> — xem mục dưới
   </div>
 
-  <div class="section-title" style="margin-top:20px;">XẾP HẠNG HUY HIỆU</div>
-  <div class="scoring-grid">
-    <div class="score-item"><div class="val" style="color:#ffd700">🥇 Global Elite</div><div class="lbl">500+ điểm</div></div>
-    <div class="score-item"><div class="val" style="color:#c0c0c0">🥈 Supreme</div><div class="lbl">300–499 điểm</div></div>
-    <div class="score-item"><div class="val" style="color:#44aaff">🦅 Eagle</div><div class="lbl">150–299 điểm</div></div>
-    <div class="score-item"><div class="val" style="color:#4cff6a">🎖 Rookie</div><div class="lbl">50–149 điểm</div></div>
-    <div class="score-item"><div class="val" style="color:#4a6040">— Recruit</div><div class="lbl">0–49 điểm</div></div>
-  </div>
-
   <div class="section-title" style="margin-top:20px;">⚡ RATING KỸ NĂNG (ELO)</div>
   <div class="tier-info-box">
     <b>Rating = thực lực thật, tách khỏi điểm tích lũy.</b><br>
@@ -1124,15 +1116,15 @@ header{text-align:center;padding:24px 16px 14px;border-bottom:1px solid var(--bo
     • <b>Vắng buổi</b> → không có round → rating <b>đứng yên</b>, không tụt oan<br>
     • Sửa/xóa trận → rating tự tính lại toàn bộ cho chính xác
   </div>
-</div>
 
-<div style="display:none;">
-  <div class="section-title" style="margin-top:20px;">TIER TỰ ĐỘNG (cũ)</div>
+  <div class="section-title" style="margin-top:20px;">PHÂN TIER THEO ĐIỂM ELO</div>
   <div class="tier-info-box">
-    🟣 <b>Tier 1</b> — Top 20% điểm cao nhất<br>
-    🟢 <b>Tier 2</b> — Top 20%–50%<br>
-    🟡 <b>Tier 3</b> — Top 50%–80%<br>
-    🔴 <b>Tier 4</b> — Bottom 20%
+    Tier xếp theo <b>mốc Elo cố định</b>, không theo top %. Chạm mốc nào vào Tier đó, không so với người khác:<br><br>
+    🟣 <b>Tier 1</b> — Elo ≥ 1150<br>
+    🟢 <b>Tier 2</b> — Elo 1050 – 1149<br>
+    🟡 <b>Tier 3</b> — Elo 950 – 1049<br>
+    🔴 <b>Tier 4</b> — Elo dưới 950<br><br>
+    <span style="color:var(--dim);font-size:12px;">Cả nhóm có thể cùng một Tier nếu trình ngang nhau; chưa ai đủ điểm thì chưa có Tier 1. Giống lên rank trong game thật.</span>
   </div>
 </div>
 
@@ -1155,6 +1147,17 @@ header{text-align:center;padding:24px 16px 14px;border-bottom:1px solid var(--bo
       <button class="modal-close" onclick="closeEloBreakdown()" title="Đóng">✕</button>
     </div>
     <div class="modal-body" id="elo-bd-body"></div>
+  </div>
+</div>
+
+<!-- ── MODAL: Player Profile (hồ sơ người chơi) ─────────────────────── -->
+<div class="modal-overlay" id="profile-modal" onclick="closeProfileIfBackdrop(event)">
+  <div class="modal-box" style="max-width:640px;">
+    <div class="modal-header">
+      <div class="modal-title" id="profile-title">HỒ SƠ NGƯỜI CHƠI</div>
+      <button class="modal-close" onclick="closeProfile()" title="Đóng">✕</button>
+    </div>
+    <div class="modal-body" id="profile-body"></div>
   </div>
 </div>
 
@@ -2070,7 +2073,7 @@ function renderLeaderboard() {
     <div class="player-card ${rc}">
       <div class="rank-num">${rank}</div>
       <div class="tier-hex ${tierCls}">${tierLabel}${arrow}</div>
-      <div class="player-name">${p.name}${p.tanker?'<span class="tanker-tag">TANK</span>':''}</div>
+      <div class="player-name" onclick="showPlayerProfile('${p.id}')" style="cursor:pointer;" title="Xem hồ sơ ${p.name}">${p.name}${p.tanker?'<span class="tanker-tag">TANK</span>':''}</div>
       <div class="stat-cell elo">${ratingVal!=='—'?'⚡'+ratingVal:'—'}</div>
       <div class="stat-cell pts">${p.points}</div>
       <div class="stat-cell matches-mobile-hide">${p.matches}</div>
@@ -2970,6 +2973,172 @@ function closeEloBdIfBackdrop(e) {
   if (e.target.id === 'elo-breakdown-modal') closeEloBreakdown();
 }
 
+// ── HỒ SƠ NGƯỜI CHƠI ──────────────────────────────────────────────────
+// Bấm tên ở BXH → xem hành trình Elo/Tier/điểm qua từng trận.
+// Dữ liệu lấy từ state.matches (mỗi trận đã lưu eloAfter/eloDelta/eloRounds).
+function buildPlayerTimeline(id) {
+  // matches lưu mới-nhất-ở-đầu → đảo lại cũ→mới
+  const chrono = [...state.matches].reverse();
+  const tl = [];
+  let matchNo = 0;
+  chrono.forEach((m, idx) => {
+    if (!m || !m.details || !m.details[id]) return;
+    matchNo++;
+    const d = m.details[id];
+    const pid = parseInt(id);
+    const team = (m.teamA||[]).includes(pid) ? 'A' : 'B';
+    let kq = 'Thua';
+    if (m.matchWinner === 'DRAW') kq = 'Hòa';
+    else if (m.matchWinner === team) kq = 'Thắng';
+    const eloAfter = (typeof d.eloAfter === 'number') ? d.eloAfter : ELO.start;
+    tl.push({
+      matchNo,
+      origIndex: state.matches.length - 1 - idx, // index trong state.matches để mở chi tiết
+      date: m.date || '',
+      kq,
+      pts: d.pts || 0,
+      kills: (d.kills_r1||0) + (d.kills_r2||0),
+      eloDelta: (typeof d.eloDelta === 'number') ? d.eloDelta : 0,
+      eloAfter,
+      tier: ratingToTier(eloAfter),
+    });
+  });
+  return tl;
+}
+
+function showPlayerProfile(id) {
+  const p = state.players[id];
+  if (!p) return;
+  const tl = buildPlayerTimeline(id);
+  document.getElementById('profile-title').textContent = `👤 ${p.name}`;
+
+  const curRating = (typeof p.rating==='number') ? Math.round(p.rating) : ELO.start;
+  const curTier = p.tier || ratingToTier(curRating);
+
+  // ── Thẻ tổng quan ──
+  const summary = `
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+      <div style="flex:1;min-width:90px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;text-align:center;">
+        <div style="font-size:10px;color:var(--dim);">TIER</div>
+        <div style="font-size:20px;font-weight:700;" class="t${curTier}-text">${curTier}</div>
+      </div>
+      <div style="flex:1;min-width:90px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;text-align:center;">
+        <div style="font-size:10px;color:var(--dim);">⚡ ELO</div>
+        <div style="font-size:20px;font-weight:700;color:#7fd4ff;font-family:'Share Tech Mono',monospace;">${curRating}</div>
+      </div>
+      <div style="flex:1;min-width:90px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;text-align:center;">
+        <div style="font-size:10px;color:var(--dim);">ĐIỂM</div>
+        <div style="font-size:20px;font-weight:700;color:var(--gold);font-family:'Orbitron',monospace;">${p.points}</div>
+      </div>
+      <div style="flex:1;min-width:120px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;text-align:center;">
+        <div style="font-size:10px;color:var(--dim);">T-H-B</div>
+        <div style="font-size:16px;font-weight:700;"><span style="color:#9fffbb;">${p.wins}</span> · <span style="color:#d8d8d8;">${p.draws||0}</span> · <span style="color:#ffaaaa;">${p.losses}</span></div>
+      </div>
+    </div>`;
+
+  if (tl.length === 0) {
+    document.getElementById('profile-body').innerHTML = summary +
+      `<div style="color:var(--dim);text-align:center;padding:20px;">Chưa có trận nào để hiển thị lịch sử.</div>`;
+    document.getElementById('profile-modal').classList.add('show');
+    return;
+  }
+
+  // ── Biểu đồ đường Elo + dải màu Tier ──
+  const chart = buildEloChart(tl);
+
+  // ── Bảng chi tiết từng trận ──
+  let rows = tl.slice().reverse().map(t => {  // mới nhất lên đầu
+    const dc = t.eloDelta > 0 ? 'var(--green)' : t.eloDelta < 0 ? 'var(--red)' : 'var(--dim)';
+    const sign = t.eloDelta > 0 ? '+' : '';
+    const kqColor = t.kq==='Thắng'?'#9fffbb':t.kq==='Hòa'?'#d8d8d8':'#ffaaaa';
+    return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="closeProfile();showMatchDetail(${t.origIndex});">
+      <td style="padding:6px 4px;color:var(--dim);">#${t.matchNo}</td>
+      <td style="padding:6px 4px;font-size:11px;color:var(--dim);">${t.date}</td>
+      <td style="padding:6px 4px;color:${kqColor};font-weight:700;">${t.kq}</td>
+      <td style="padding:6px 4px;text-align:center;">${t.kills}</td>
+      <td style="padding:6px 4px;text-align:right;color:${dc};font-weight:700;font-family:'Share Tech Mono',monospace;">${sign}${Math.round(t.eloDelta)}</td>
+      <td style="padding:6px 4px;text-align:right;color:#7fd4ff;font-family:'Share Tech Mono',monospace;">${Math.round(t.eloAfter)}</td>
+      <td style="padding:6px 4px;text-align:center;font-weight:700;">T${t.tier}</td>
+    </tr>`;
+  }).join('');
+
+  const table = `
+    <div style="font-size:11px;color:var(--dim);margin:4px 0 6px;letter-spacing:1px;">LỊCH SỬ TỪNG TRẬN (bấm để xem chi tiết)</div>
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="color:var(--dim);font-size:10px;letter-spacing:1px;text-align:left;">
+        <th style="padding:4px;">#</th><th style="padding:4px;">NGÀY</th><th style="padding:4px;">KQ</th>
+        <th style="padding:4px;text-align:center;">KILL</th><th style="padding:4px;text-align:right;">⚡±</th>
+        <th style="padding:4px;text-align:right;">ELO</th><th style="padding:4px;text-align:center;">TIER</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+
+  document.getElementById('profile-body').innerHTML = summary + chart + table;
+  document.getElementById('profile-modal').classList.add('show');
+}
+
+// Vẽ biểu đồ đường Elo bằng SVG, có dải màu Tier nền.
+function buildEloChart(tl) {
+  const W = 580, H = 200, padL = 44, padR = 12, padT = 14, padB = 24;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const elos = tl.map(t => t.eloAfter);
+  // trục Y bao trùm cả các ngưỡng tier gần dữ liệu
+  let lo = Math.min(...elos, 950), hi = Math.max(...elos, 1050);
+  const padY = Math.max(20, (hi - lo) * 0.15);
+  lo -= padY; hi += padY;
+  const xAt = i => padL + (tl.length===1 ? plotW/2 : (i/(tl.length-1))*plotW);
+  const yAt = v => padT + plotH - ((v - lo)/(hi - lo))*plotH;
+
+  // Dải màu tier (1150/1050/950) — chỉ vẽ phần nằm trong khung
+  const bands = [
+    {top:Infinity, bot:1150, color:'rgba(124,58,237,0.13)'}, // T1
+    {top:1150, bot:1050, color:'rgba(13,148,136,0.13)'},     // T2
+    {top:1050, bot:950,  color:'rgba(217,119,6,0.13)'},      // T3
+    {top:950,  bot:-Infinity, color:'rgba(220,38,38,0.13)'}, // T4
+  ];
+  let bandRects = '';
+  bands.forEach(b => {
+    const yTop = yAt(Math.min(b.top, hi));
+    const yBot = yAt(Math.max(b.bot, lo));
+    if (yBot <= yTop) return;
+    bandRects += `<rect x="${padL}" y="${yTop}" width="${plotW}" height="${yBot-yTop}" fill="${b.color}"/>`;
+  });
+
+  // Đường ngưỡng tier + nhãn
+  let tierLines = '';
+  [1150,1050,950].forEach(th => {
+    if (th < lo || th > hi) return;
+    const y = yAt(th);
+    tierLines += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--border)" stroke-dasharray="3 3" stroke-width="1"/>
+      <text x="${padL-6}" y="${y+3}" text-anchor="end" font-size="9" fill="var(--dim)">${th}</text>`;
+  });
+
+  // Đường Elo
+  const pts = tl.map((t,i) => `${xAt(i).toFixed(1)},${yAt(t.eloAfter).toFixed(1)}`).join(' ');
+  // Điểm tròn, màu theo tier tại điểm đó
+  const tierColor = {1:'#a78bfa',2:'#2dd4bf',3:'#fbbf24',4:'#f87171'};
+  let dots = tl.map((t,i) =>
+    `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(t.eloAfter).toFixed(1)}" r="3.5" fill="${tierColor[t.tier]}" stroke="var(--panel)" stroke-width="1.5"><title>Trận #${t.matchNo}: ${Math.round(t.eloAfter)} (T${t.tier})</title></circle>`
+  ).join('');
+
+  return `
+    <div style="font-size:11px;color:var(--dim);margin:4px 0 6px;letter-spacing:1px;">ĐƯỜNG ELO & TIER QUA CÁC TRẬN</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:14px;">
+      ${bandRects}
+      ${tierLines}
+      <polyline points="${pts}" fill="none" stroke="#7fd4ff" stroke-width="2" stroke-linejoin="round"/>
+      ${dots}
+    </svg>`;
+}
+
+function closeProfile() {
+  document.getElementById('profile-modal').classList.remove('show');
+}
+function closeProfileIfBackdrop(e) {
+  if (e.target.id === 'profile-modal') closeProfile();
+}
+
 // ─────────────────────────────────────────────────────────────────────
 //  EDIT / DELETE MATCH
 // ─────────────────────────────────────────────────────────────────────
@@ -3392,14 +3561,15 @@ function exportLeaderboardPNG() {
   ctx.stroke();
 
   const cols = {
-    rank:   60,
-    tier:   110,
-    name:   165,
-    points: 580,
-    matches:670,
-    wins:   750,
-    losses: 820,
-    badge:  900,
+    rank:   55,
+    tier:   100,
+    name:   150,
+    elo:    560,
+    points: 650,
+    matches:728,
+    wins:   800,
+    draws:  860,
+    losses: 920,
   };
 
   ctx.fillStyle = '#2d3447';
@@ -3414,11 +3584,12 @@ function exportLeaderboardPNG() {
   ctx.textAlign = 'center'; ctx.fillText('#',     cols.rank, hY);
   ctx.fillText('TIER',                            cols.tier, hY);
   ctx.textAlign = 'left';   ctx.fillText('TÊN',  cols.name, hY);
-  ctx.textAlign = 'center'; ctx.fillText('ĐIỂM', cols.points, hY);
+  ctx.textAlign = 'center'; ctx.fillText('ELO',  cols.elo, hY);
+  ctx.fillText('ĐIỂM', cols.points, hY);
   ctx.fillText('TRẬN',                            cols.matches, hY);
   ctx.fillText('THẮNG',                           cols.wins, hY);
+  ctx.fillText('HÒA',                             cols.draws, hY);
   ctx.fillText('THUA',                            cols.losses, hY);
-  ctx.fillText('HẠNG',                            cols.badge, hY);
 
   const tierColors = {1:'#7c3aed', 2:'#0d9488', 3:'#d97706', 4:'#dc2626'};
   const badgeStyles = {
@@ -3433,7 +3604,6 @@ function exportLeaderboardPNG() {
     const rank = i + 1;
     const rowY = TABLE_TOP + TABLE_HEADER_H + i * ROW_H;
     const midY = rowY + ROW_H/2;
-    const badge = getBadge(p.points);
 
     let rowBg = '#252b3d';
     let leftBar = '#3d4860';
@@ -3485,6 +3655,13 @@ function exportLeaderboardPNG() {
       ctx.fillText('TANK', tagX + 21, midY + 1);
     }
 
+    // ELO column
+    const eloVal = p.matches > 0 ? Math.round(typeof p.rating==='number'?p.rating:ELO.start) : null;
+    ctx.fillStyle = '#7fd4ff';
+    ctx.font = 'bold 14px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(eloVal!==null ? '⚡'+eloVal : '—', cols.elo, midY);
+
     ctx.fillStyle = '#f5b942';
     ctx.font = 'bold 16px Orbitron, monospace';
     ctx.textAlign = 'center';
@@ -3498,21 +3675,11 @@ function exportLeaderboardPNG() {
     ctx.font = 'bold 13px "Share Tech Mono", monospace';
     ctx.fillText(String(p.wins), cols.wins, midY);
 
+    ctx.fillStyle = '#d8d8d8';
+    ctx.fillText(String(p.draws||0), cols.draws, midY);
+
     ctx.fillStyle = '#ffaaaa';
     ctx.fillText(String(p.losses), cols.losses, midY);
-
-    const bStyle = badgeStyles[badge.label] || badgeStyles['Recruit'];
-    const bX = cols.badge - 60;
-    const bY = midY - 11;
-    ctx.fillStyle = bStyle.bg;
-    ctx.fillRect(bX, bY, 120, 22);
-    ctx.strokeStyle = bStyle.border;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(bX, bY, 120, 22);
-    ctx.fillStyle = bStyle.color;
-    ctx.font = 'bold 10px "Share Tech Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(badge.label.toUpperCase(), bX + 60, midY + 1);
   });
 
   const fY = TABLE_TOP + TABLE_HEADER_H + players.length * ROW_H + 30;
