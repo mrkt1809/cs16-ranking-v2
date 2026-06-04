@@ -1834,7 +1834,7 @@ let _ratingsMigrated = false;
 function maybeMigrateRatings() {
   if (_ratingsMigrated) return;
   const played = Object.values(state.players).filter(p => p && p.matches > 0);
-  if (played.length === 0) { _ratingsMigrated = true; return; }
+  if (played.length === 0) return; // chưa có dữ liệu → chưa khóa, để lần sau (vd sau khi sync) còn chạy
   const needsMigration = played.every(p => (p.placementCount || 0) === 0);
   if (needsMigration) {
     recalcAllRatings();
@@ -3905,8 +3905,13 @@ function importData(event) {
       state = imported;
       if (!state.matches) state.matches = [];
       if (!state.auth) state.auth = { password: DEFAULT_ADMIN_PASSWORD };
+      // Chuẩn hóa players (gán mặc định rating/placementCount cho dữ liệu cũ)
+      state.players = sanitizePlayers(state.players);
+      // BẮT BUỘC tính lại Elo + Tier từ lịch sử trận vừa import.
+      // Gọi thẳng recomputeTiers (không qua maybeMigrateRatings vì nó đã bị khóa lúc boot).
+      recomputeTiers();
       saveState();
-      showToast('✓ Đã import dữ liệu thành công!');
+      showToast('✓ Đã import & tính Elo từ lịch sử!');
       renderManage();
       renderLeaderboard();
     } catch (err) {
