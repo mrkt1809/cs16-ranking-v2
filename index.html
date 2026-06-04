@@ -1454,12 +1454,16 @@ function applyRemoteState(remote) {
     if (localDraft != null) state.draft = localDraft;
     if (localEditing != null) state.editingMatchIndex = localEditing;
 
-    // One-time migration: nếu dữ liệu cũ chưa có rating → tính từ lịch sử trận.
-    maybeMigrateRatings();
-
-    // Luôn suy lại W/H/B từ lịch sử trận để cột Hòa không bị lệch do dữ liệu cũ
-    // (các trận nhập trước khi có tính năng đếm hòa sẽ được sửa đúng khi hiển thị).
-    recountRecords();
+    // Luôn tính lại Elo + Tier + W/H/B từ lịch sử trận mỗi khi tải dữ liệu.
+    // Nhờ vậy mọi thay đổi công thức (vd kỳ vọng tính theo đầu trận) được áp dụng
+    // ngay cho cả dữ liệu cũ — eloRounds/eloDelta luôn khớp code hiện hành.
+    // recalcAllRatings idempotent (tính từ con số 0) nên gọi lại an toàn.
+    if (Array.isArray(state.matches) && state.matches.length > 0) {
+      recomputeTiers();   // gồm recalcAllRatings + recountRecords + gán tier
+    } else {
+      recountRecords();
+    }
+    _ratingsMigrated = true; // đã có rating tươi, khỏi cần migration sau này
 
     // Cache to localStorage (so offline reads work)
     localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -4203,8 +4207,9 @@ document.addEventListener('keydown', (e) => {
 //  INIT
 // ─────────────────────────────────────────────────────────────────────
 applyAuthUI();
-maybeMigrateRatings();  // migrate v33 → rating Elo nếu cần (offline/local path)
-recountRecords();       // suy lại W/H/B từ lịch sử (sửa cột Hòa nếu dữ liệu cũ lệch)
+// Tính lại Elo + Tier + W/H/B từ lịch sử (áp công thức hiện hành cho cả dữ liệu cũ)
+if (Array.isArray(state.matches) && state.matches.length > 0) recomputeTiers();
+else recountRecords();
 renderLeaderboard();
 updateSyncBadge();   // show "connecting" initially
 initFirebase();      // start Firebase sync (async)
