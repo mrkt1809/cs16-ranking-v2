@@ -1458,12 +1458,26 @@ function applyRemoteState(remote) {
     // Nhờ vậy mọi thay đổi công thức (vd kỳ vọng tính theo đầu trận) được áp dụng
     // ngay cho cả dữ liệu cũ — eloRounds/eloDelta luôn khớp code hiện hành.
     // recalcAllRatings idempotent (tính từ con số 0) nên gọi lại an toàn.
+    let beforeSig = '';
     if (Array.isArray(state.matches) && state.matches.length > 0) {
+      // Chữ ký dữ liệu Elo trước khi tính lại, để biết recalc có thay đổi gì không
+      beforeSig = JSON.stringify(state.matches.map(m => m && m.details
+        ? Object.keys(m.details).map(k => m.details[k] && m.details[k].eloDelta).join(',') : ''));
       recomputeTiers();   // gồm recalcAllRatings + recountRecords + gán tier
     } else {
       recountRecords();
     }
     _ratingsMigrated = true; // đã có rating tươi, khỏi cần migration sau này
+
+    // Nếu dữ liệu cũ trên cloud khác kết quả tính lại (vd lưu bằng công thức cũ),
+    // đẩy bản đúng lên Firebase MỘT LẦN để chữa lành dữ liệu cho mọi thiết bị.
+    if (beforeSig) {
+      const afterSig = JSON.stringify(state.matches.map(m => m && m.details
+        ? Object.keys(m.details).map(k => m.details[k] && m.details[k].eloDelta).join(',') : ''));
+      if (afterSig !== beforeSig) {
+        setTimeout(() => { try { saveState(); } catch(e){} }, 1200); // đợi guard remote-apply nhả
+      }
+    }
 
     // Cache to localStorage (so offline reads work)
     localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -2801,6 +2815,7 @@ function renderHistory() {
 //  MATCH DETAIL MODAL
 // ─────────────────────────────────────────────────────────────────────
 function showMatchDetail(idx) {
+  if (Array.isArray(state.matches) && state.matches.length > 0) recalcAllRatings();
   const m = state.matches[idx];
   if (!m) return;
 
@@ -2940,6 +2955,9 @@ function closeMatchDetailIfBackdrop(e) {
 
 // Giải thích chi tiết vì sao một người +/- bằng đó Elo trong 1 trận.
 function showEloBreakdown(idx, id) {
+  // Tính lại Elo theo công thức hiện hành trước khi đọc → eloRounds luôn mới,
+  // không phụ thuộc dữ liệu cũ lưu trong Firebase.
+  if (Array.isArray(state.matches) && state.matches.length > 0) recalcAllRatings();
   const m = state.matches[idx];
   if (!m || !m.details || !m.details[id]) return;
   const d = m.details[id];
@@ -3038,6 +3056,7 @@ function buildPlayerTimeline(id) {
 function showPlayerProfile(id) {
   const p = state.players[id];
   if (!p) return;
+  if (Array.isArray(state.matches) && state.matches.length > 0) recalcAllRatings();
   const tl = buildPlayerTimeline(id);
   document.getElementById('profile-title').textContent = `👤 ${p.name}`;
 
