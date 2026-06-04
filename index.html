@@ -3021,6 +3021,12 @@ function showPlayerProfile(id) {
   const curRating = (typeof p.rating==='number') ? Math.round(p.rating) : ELO.start;
   const curTier = p.tier || ratingToTier(curRating);
 
+  // T-H-B suy trực tiếp từ lịch sử trận (cùng nguồn với bảng chi tiết) → luôn khớp,
+  // không phụ thuộc bộ đếm lưu sẵn (vốn có thể lệch với dữ liệu cũ).
+  const wins   = tl.filter(t => t.kq === 'Thắng').length;
+  const draws  = tl.filter(t => t.kq === 'Hòa').length;
+  const losses = tl.filter(t => t.kq === 'Thua').length;
+
   // ── Thẻ tổng quan ──
   const summary = `
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
@@ -3038,7 +3044,7 @@ function showPlayerProfile(id) {
       </div>
       <div style="flex:1;min-width:120px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;text-align:center;">
         <div style="font-size:10px;color:var(--dim);">T-H-B</div>
-        <div style="font-size:16px;font-weight:700;"><span style="color:#9fffbb;">${p.wins}</span> · <span style="color:#d8d8d8;">${p.draws||0}</span> · <span style="color:#ffaaaa;">${p.losses}</span></div>
+        <div style="font-size:16px;font-weight:700;"><span style="color:#9fffbb;">${wins}</span> · <span style="color:#d8d8d8;">${draws}</span> · <span style="color:#ffaaaa;">${losses}</span></div>
       </div>
     </div>`;
 
