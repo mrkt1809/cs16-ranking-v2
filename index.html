@@ -3790,41 +3790,44 @@ function distributeTeams() {
     .sort(() => Math.random() - 0.5)
     .sort((a, b) => playerScore(b) - playerScore(a));
 
+  // Chia kiểu rắn (snake): mạnh nhất về A, 2 người kế về B, ... giữ quân số cân
+  // và phân bổ đều người mạnh/yếu cho 2 bên.
   const teamA = [], teamB = [];
   let sumA = 0, sumB = 0;
-
   for (const p of sorted) {
     const s = playerScore(p);
     const sizeDiff = teamA.length - teamB.length;
     if (sizeDiff >= 1) { teamB.push(p); sumB += s; }
     else if (sizeDiff <= -1) { teamA.push(p); sumA += s; }
-    else if (sumA <= sumB) { teamA.push(p); sumA += s; }
+    // cân theo TRUNG BÌNH, không phải tổng (quan trọng khi quân số lệch)
+    else if ((sumA/(teamA.length||1)) <= (sumB/(teamB.length||1))) { teamA.push(p); sumA += s; }
     else { teamB.push(p); sumB += s; }
   }
 
+  // Tối ưu bằng cách hoán đổi: giảm chênh lệch Elo TRUNG BÌNH giữa 2 team.
+  const avgDiff = () => Math.abs(sumA/(teamA.length||1) - sumB/(teamB.length||1));
   let iter = 0;
-  while (iter < 50) {
+  while (iter < 80) {
     iter++;
     let bestSwap = null, bestImprov = 0;
+    const curDiff = avgDiff();
     for (let i = 0; i < teamA.length; i++) {
       for (let j = 0; j < teamB.length; j++) {
         const sA = playerScore(teamA[i]), sB = playerScore(teamB[j]);
-        const curDiff = Math.abs(sumA - sumB);
-        const newSumA = sumA - sA + sB;
-        const newSumB = sumB - sB + sA;
-        const newDiff = Math.abs(newSumA - newSumB);
+        const nSumA = sumA - sA + sB;
+        const nSumB = sumB - sB + sA;
+        const newDiff = Math.abs(nSumA/teamA.length - nSumB/teamB.length);
         const improv = curDiff - newDiff;
-        if (improv > bestImprov + 0.001) {
+        if (improv > bestImprov + 0.0001) {
           bestImprov = improv;
-          bestSwap = { i, j, sA, sB };
+          bestSwap = { i, j, sA, sB, nSumA, nSumB };
         }
       }
     }
     if (!bestSwap) break;
-    const { i, j, sA, sB } = bestSwap;
+    const { i, j, sA, sB, nSumA, nSumB } = bestSwap;
     [teamA[i], teamB[j]] = [teamB[j], teamA[i]];
-    sumA = sumA - sA + sB;
-    sumB = sumB - sB + sA;
+    sumA = nSumA; sumB = nSumB;
   }
 
   lastDistribution = {
@@ -3881,19 +3884,16 @@ function renderTSResult() {
   renderPanel('a', a); renderPanel('b', b);
 
   const diff = Math.abs(a.avgElo - b.avgElo);
-  const ratingDiff = Math.abs(
-    a.ps.reduce((s,p)=>s+playerScore(p),0) -
-    b.ps.reduce((s,p)=>s+playerScore(p),0)
-  );
+  const ratingDiff = diff; // dùng chênh lệch TRUNG BÌNH để đánh giá (đúng cả khi lệch quân số)
   let balanceText, balanceColor;
-  if (ratingDiff < 50) { balanceText = '⚖️ CÂN BẰNG TUYỆT VỜI'; balanceColor = 'var(--green)'; }
-  else if (ratingDiff < 150) { balanceText = '✓ Cân bằng tốt'; balanceColor = 'var(--gold)'; }
-  else if (ratingDiff < 300) { balanceText = '⚠ Hơi lệch'; balanceColor = 'var(--orange)'; }
+  if (ratingDiff < 15) { balanceText = '⚖️ CÂN BẰNG TUYỆT VỜI'; balanceColor = 'var(--green)'; }
+  else if (ratingDiff < 35) { balanceText = '✓ Cân bằng tốt'; balanceColor = 'var(--gold)'; }
+  else if (ratingDiff < 70) { balanceText = '⚠ Hơi lệch'; balanceColor = 'var(--orange)'; }
   else { balanceText = '⚠ Lệch nhiều — thử chia lại'; balanceColor = 'var(--red)'; }
 
   document.getElementById('ts-balance').innerHTML =
     `<div style="color:${balanceColor};font-family:'Orbitron',monospace;font-weight:700;letter-spacing:2px;margin-bottom:4px;">${balanceText}</div>
-     Chênh Elo TB: <b>${diff}</b> · Chênh Elo tổng: <b>${Math.round(ratingDiff)}</b>`;
+     Chênh Elo TB: <b>${diff}</b>${a.count!==b.count?` · ⚠ Lệch quân số ${a.count} vs ${b.count}`:''}`;
 }
 
 function applyDistribution() {
