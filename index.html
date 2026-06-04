@@ -1885,17 +1885,22 @@ function recountRecords() {
   if (!state || !state.players || !Array.isArray(state.matches)) return;
   Object.values(state.players).forEach(p => {
     if (!p || typeof p !== 'object') return;
-    p.wins = 0; p.losses = 0; p.draws = 0;
+    p.wins = 0; p.losses = 0; p.draws = 0; p.matches = 0;
   });
-  // Lưu ý: matches/points/kills đã đúng từ trước, chỉ cần đếm lại W/L/D
-  // để khỏi lệch nếu dữ liệu cũ thiếu trường draws.
+  // Đếm lại matches + W/H/B từ lịch sử, dựa trên việc CÓ MẶT trong team của trận.
+  // Nhờ vậy luôn đảm bảo: matches = wins + draws + losses (không bao giờ lệch).
   [...state.matches].forEach(m => {
     if (!m || !m.details) return;
-    Object.keys(m.details).forEach(idStr => {
-      const p = state.players[idStr];
+    const teamA = (m.teamA || []).map(Number);
+    const teamB = (m.teamB || []).map(Number);
+    // Duyệt theo người THỰC SỰ trong team (không dựa vào details để tránh entry rác)
+    const seen = new Set();
+    [...teamA.map(id=>['A',id]), ...teamB.map(id=>['B',id])].forEach(([team,id]) => {
+      const p = state.players[id];
       if (!p) return;
-      const id = parseInt(idStr);
-      const team = (m.teamA||[]).includes(id) ? 'A' : 'B';
+      if (seen.has(id)) return; // tránh đếm trùng nếu id lỡ ở cả 2 team
+      seen.add(id);
+      p.matches++;
       if (m.matchWinner === team) p.wins++;
       else if (m.matchWinner === 'DRAW') p.draws++;
       else p.losses++;
@@ -3030,10 +3035,16 @@ function buildPlayerTimeline(id) {
   let matchNo = 0;
   chrono.forEach((m, idx) => {
     if (!m || !m.details || !m.details[id]) return;
+    const pid = parseInt(id);
+    const teamA = (m.teamA||[]).map(Number);
+    const teamB = (m.teamB||[]).map(Number);
+    // Chỉ tính nếu người này thực sự thuộc 1 team của trận
+    let team = null;
+    if (teamA.includes(pid)) team = 'A';
+    else if (teamB.includes(pid)) team = 'B';
+    else return;
     matchNo++;
     const d = m.details[id];
-    const pid = parseInt(id);
-    const team = (m.teamA||[]).includes(pid) ? 'A' : 'B';
     let kq = 'Thua';
     if (m.matchWinner === 'DRAW') kq = 'Hòa';
     else if (m.matchWinner === team) kq = 'Thắng';
