@@ -1913,9 +1913,20 @@ function recalcAllRatings() {
     [...(m.teamA||[]), ...(m.teamB||[])].forEach(id => {
       if (state.players[id]) before[id] = state.players[id].rating;
     });
-    // Mỗi round là một "trận" Elo riêng (mịn hơn). R1 và R2.
-    applyEloForRound(m, 1);
-    applyEloForRound(m, 2);
+    // Kỳ vọng thắng tính MỘT LẦN theo rating đầu trận → cả 2 round dùng chung.
+    // Nhờ vậy kết quả không phụ thuộc thứ tự thắng/thua giữa các round.
+    const idsA = (m.teamA||[]).filter(id => state.players[id]);
+    const idsB = (m.teamB||[]).filter(id => state.players[id]);
+    let preExp = null;
+    if (idsA.length && idsB.length) {
+      const avg = ids => ids.reduce((s,id)=>s+(state.players[id].rating||ELO.start),0)/ids.length;
+      const Ra = avg(idsA), Rb = avg(idsB);
+      const Ea = 1 / (1 + Math.pow(10, (Rb - Ra) / 400));
+      preExp = { Ea, Eb: 1 - Ea };
+    }
+    // Mỗi round là một "trận" Elo riêng, nhưng dùng chung kỳ vọng đầu trận.
+    applyEloForRound(m, 1, preExp);
+    applyEloForRound(m, 2, preExp);
     // Ghi delta = rating sau cả 2 round − rating trước trận
     Object.keys(before).forEach(id => {
       if (!m.details[id]) return;
@@ -1927,7 +1938,10 @@ function recalcAllRatings() {
 }
 
 // Áp Elo cho 1 round của 1 trận.
-function applyEloForRound(m, roundNo) {
+// preExp (tùy chọn): {Ea, Eb} kỳ vọng tính sẵn từ rating ĐẦU TRẬN.
+// Nếu truyền vào, cả 2 round dùng chung kỳ vọng này → kết quả không phụ thuộc
+// thứ tự thắng/thua giữa các round (trận hòa 1-1 luôn triệt tiêu về ~0).
+function applyEloForRound(m, roundNo, preExp) {
   const winner = roundNo === 1 ? m.r1Winner : m.r2Winner;
   if (winner !== 'A' && winner !== 'B') return; // round không có winner hợp lệ → bỏ
 
@@ -1935,10 +1949,15 @@ function applyEloForRound(m, roundNo) {
   const idsB = (m.teamB || []).filter(id => state.players[id]);
   if (!idsA.length || !idsB.length) return;
 
-  const avg = ids => ids.reduce((s,id)=>s+(state.players[id].rating||ELO.start),0)/ids.length;
-  const Ra = avg(idsA), Rb = avg(idsB);
-  const Ea = 1 / (1 + Math.pow(10, (Rb - Ra) / 400)); // kỳ vọng thắng team A
-  const Eb = 1 - Ea;
+  let Ea, Eb;
+  if (preExp && typeof preExp.Ea === 'number') {
+    Ea = preExp.Ea; Eb = preExp.Eb;
+  } else {
+    const avg = ids => ids.reduce((s,id)=>s+(state.players[id].rating||ELO.start),0)/ids.length;
+    const Ra = avg(idsA), Rb = avg(idsB);
+    Ea = 1 / (1 + Math.pow(10, (Rb - Ra) / 400)); // kỳ vọng thắng team A
+    Eb = 1 - Ea;
+  }
 
   const scoreA = winner === 'A' ? 1 : 0;
   const scoreB = winner === 'B' ? 1 : 0;
