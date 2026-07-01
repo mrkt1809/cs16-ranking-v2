@@ -168,6 +168,14 @@ header{text-align:center;padding:24px 16px 14px;border-bottom:1px solid var(--bo
 .winner-btn.sel-a{border-color:var(--blue);color:#fff;background:rgba(92,180,255,0.3);box-shadow:0 0 12px rgba(92,180,255,0.4);}
 .winner-btn.sel-b{border-color:var(--orange);color:#fff;background:rgba(255,153,102,0.3);box-shadow:0 0 12px rgba(255,153,102,0.4);}
 .winner-btn.loser{opacity:0.4;}
+.score-row{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px;}
+.score-box{display:flex;align-items:center;gap:8px;font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:1px;color:var(--text);}
+.score-box.a{color:var(--blue);} .score-box.b{color:var(--orange);}
+.score-input{width:64px;padding:12px;background:#1a2030;border:2px solid var(--border);border-radius:6px;color:#fff;font-family:'Orbitron',sans-serif;font-size:20px;font-weight:700;text-align:center;}
+.score-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 10px rgba(245,185,66,0.3);}
+.score-sep{font-family:'Orbitron',sans-serif;font-size:22px;color:var(--dim);}
+.round-outcome-line{text-align:center;font-size:11px;color:var(--dim);margin-bottom:10px;min-height:16px;letter-spacing:1px;}
+.round-outcome-line.win-a{color:var(--blue);} .round-outcome-line.win-b{color:var(--orange);}
 
 /* STATS */
 .stats-input-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
@@ -825,11 +833,19 @@ header{text-align:center;padding:24px 16px 14px;border-bottom:1px solid var(--bo
         <span class="side-label" style="margin-left:auto;">→ Team B: <span id="r1-b-side">—</span></span>
       </div>
 
-      <div style="font-size:10px;letter-spacing:2px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;">Round 1 — Winner</div>
-      <div class="winner-row">
-        <button class="winner-btn" id="r1-win-a" onclick="selectRoundWinner(1,'A')">🔵 Team A thắng R1</button>
-        <button class="winner-btn" id="r1-win-b" onclick="selectRoundWinner(1,'B')">🔴 Team B thắng R1</button>
+      <div style="font-size:10px;letter-spacing:2px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;">Round 1 — Tỉ số séc</div>
+      <div class="score-row">
+        <div class="score-box a">
+          <span>🔵 Team A</span>
+          <input type="number" min="0" max="30" id="r1-score-a" class="score-input" placeholder="0" oninput="onScoreInput()">
+        </div>
+        <span class="score-sep">–</span>
+        <div class="score-box b">
+          <input type="number" min="0" max="30" id="r1-score-b" class="score-input" placeholder="0" oninput="onScoreInput()">
+          <span>Team B 🔴</span>
+        </div>
       </div>
+      <div class="round-outcome-line" id="r1-round-outcome">Nhập tỉ số séc round 1</div>
 
       <div class="stats-input-grid">
         <div class="stats-team-panel">
@@ -874,11 +890,19 @@ header{text-align:center;padding:24px 16px 14px;border-bottom:1px solid var(--bo
         <span class="side-label" style="margin-left:auto;">→ Team B: <span class="side-display" id="r2-b-sidebadge">—</span></span>
       </div>
 
-      <div style="font-size:10px;letter-spacing:2px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;">Round 2 — Winner</div>
-      <div class="winner-row">
-        <button class="winner-btn" id="r2-win-a" onclick="selectRoundWinner(2,'A')">🔵 Team A thắng R2</button>
-        <button class="winner-btn" id="r2-win-b" onclick="selectRoundWinner(2,'B')">🔴 Team B thắng R2</button>
+      <div style="font-size:10px;letter-spacing:2px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;">Round 2 — Tỉ số séc</div>
+      <div class="score-row">
+        <div class="score-box a">
+          <span>🔵 Team A</span>
+          <input type="number" min="0" max="30" id="r2-score-a" class="score-input" placeholder="0" oninput="onScoreInput()">
+        </div>
+        <span class="score-sep">–</span>
+        <div class="score-box b">
+          <input type="number" min="0" max="30" id="r2-score-b" class="score-input" placeholder="0" oninput="onScoreInput()">
+          <span>Team B 🔴</span>
+        </div>
       </div>
+      <div class="round-outcome-line" id="r2-round-outcome">Nhập tỉ số séc round 2</div>
 
       <div class="stats-input-grid">
         <div class="stats-team-panel">
@@ -1616,9 +1640,13 @@ const SCORING = { win_bonus:5, kill:1, topkill:5, upset_win:10 };
 // rating = thực lực; dùng cho Tier + Chia team. Người vắng → rating đứng yên.
 const ELO = {
   start: 1000,        // rating khởi điểm mọi người
-  kBase: 32,          // hệ số chuẩn
-  kPlacement: 48,     // hệ số cho ~10 trận đầu (placement, hội tụ nhanh)
-  placementGames: 10, // số trận tính placement (mỗi round = 1 trận Elo)
+  kBase: 32,          // hệ số chuẩn (trận CŨ tính theo round)
+  kPlacement: 48,     // hệ số placement (trận CŨ)
+  // Trận MỚI (tính theo tỉ lệ séc, 1 lần cập nhật/buổi) → K cao hơn để bù
+  // việc chỉ cập nhật 1 lần thay vì 2 round. ~gấp đôi mức cũ.
+  kBaseScore: 40,     // hệ số chuẩn (trận mới)
+  kPlacementScore: 64,// hệ số placement (trận mới)
+  placementGames: 10, // số lần cập nhật tính placement
   perfBonusPerKill: 1,// điểm rating thêm/bớt cho mỗi kill lệch khỏi TB trận
   perfBonusCap: 5,    // biên performance bonus (±5)
   // Ngưỡng Tier suy từ rating (chỉnh được sau khi thấy phân bố thực tế)
@@ -1948,8 +1976,12 @@ function recalcAllRatings() {
       preExp = { Ea, Eb: 1 - Ea };
     }
     // Mỗi round là một "trận" Elo riêng, nhưng dùng chung kỳ vọng đầu trận.
-    applyEloForRound(m, 1, preExp);
-    applyEloForRound(m, 2, preExp);
+    if (m.matchType === 'score') {
+      applyEloScoreMatch(m, preExp);   // cơ chế mới: 1 lần cập nhật theo tỉ lệ séc
+    } else {
+      applyEloForRound(m, 1, preExp);  // cơ chế cũ (trận cũ): tính từng round
+      applyEloForRound(m, 2, preExp);
+    }
     // Ghi delta = rating sau cả 2 round − rating trước trận
     Object.keys(before).forEach(id => {
       if (!m.details[id]) return;
@@ -1958,6 +1990,61 @@ function recalcAllRatings() {
       m.details[id].eloAfter = Math.round(after * 10) / 10;
     });
   }
+}
+
+// Cơ chế MỚI: áp Elo 1 lần cho cả buổi dựa trên TỈ LỆ SÉC.
+// actualScore = séc thắng / tổng séc → phản ánh mức độ áp đảo (11-9 khác 18-2).
+function applyEloScoreMatch(m, preExp) {
+  const idsA = (m.teamA||[]).filter(id => state.players[id]);
+  const idsB = (m.teamB||[]).filter(id => state.players[id]);
+  if (!idsA.length || !idsB.length) return;
+
+  const secA = (m.secA != null) ? m.secA : ((m.r1ScoreA||0)+(m.r2ScoreA||0));
+  const secB = (m.secB != null) ? m.secB : ((m.r1ScoreB||0)+(m.r2ScoreB||0));
+  const total = secA + secB;
+  if (total <= 0) return;
+  const actualA = secA / total;   // "điểm số thực tế" theo tỉ lệ séc
+  const actualB = secB / total;
+
+  let Ea, Eb;
+  if (preExp && typeof preExp.Ea === 'number') { Ea = preExp.Ea; Eb = preExp.Eb; }
+  else {
+    const avg = ids => ids.reduce((s,id)=>s+(state.players[id].rating||ELO.start),0)/ids.length;
+    const Ra = avg(idsA), Rb = avg(idsB);
+    Ea = 1/(1+Math.pow(10,(Rb-Ra)/400)); Eb = 1-Ea;
+  }
+
+  // Kill trung bình cả buổi (gộp 2 round) cho performance bonus
+  const killOf = id => { const d=m.details[id]; if(!d) return 0; return (d.kills_r1||0)+(d.kills_r2||0); };
+  const allIds = [...idsA, ...idsB];
+  const avgKills = allIds.length ? allIds.reduce((s,id)=>s+killOf(id),0)/allIds.length : 0;
+
+  const updateTeam = (ids, actual, expected, teamKey) => {
+    ids.forEach(id => {
+      const p = state.players[id];
+      const K = (p.placementCount < ELO.placementGames) ? ELO.kPlacementScore : ELO.kBaseScore;
+      const baseDelta = K * (actual - expected);
+      // Performance bonus theo kill cả buổi (so TB trận), biên ±cap
+      const perfRaw = (killOf(id) - avgKills) * ELO.perfBonusPerKill;
+      const perfDelta = Math.max(-ELO.perfBonusCap, Math.min(ELO.perfBonusCap, perfRaw));
+      const delta = baseDelta + perfDelta;
+      p.rating = Math.round((p.rating + delta) * 10) / 10;
+      p.placementCount = (p.placementCount || 0) + 1;
+      if (m.details[id]) {
+        // Lưu breakdown kiểu score (1 mục thay vì 2 round)
+        m.details[id].eloScore = {
+          actual: Math.round(actual*1000)/1000,
+          expected: Math.round(expected*100)/100,
+          base: Math.round(baseDelta*10)/10,
+          perf: Math.round(perfDelta*10)/10,
+          K, secWon: (teamKey==='A'?secA:secB), secTotal: total
+        };
+        delete m.details[id].eloRounds; // xóa breakdown round cũ nếu có
+      }
+    });
+  };
+  updateTeam(idsA, actualA, Ea, 'A');
+  updateTeam(idsB, actualB, Eb, 'B');
 }
 
 // Áp Elo cho 1 round của 1 trận.
@@ -2154,11 +2241,14 @@ window.addEventListener('resize', applyResponsiveLeaderboard);
 let selA = new Set(), selB = new Set();
 let r1Side = null;
 let r1Winner = null, r2Winner = null;
+// Tỉ số séc (cơ chế mới). null = chưa nhập.
+let r1ScoreA = null, r1ScoreB = null, r2ScoreA = null, r2ScoreB = null;
 let editingMatchIndex = (state.editingMatchIndex != null) ? state.editingMatchIndex : null;
 
 function renderLogForm() {
   selA.clear(); selB.clear();
   r1Side = null; r1Winner = null; r2Winner = null;
+  r1ScoreA = null; r1ScoreB = null; r2ScoreA = null; r2ScoreB = null;
   document.getElementById('match-date').value = '';
 
   const editBanner = document.getElementById('edit-banner');
@@ -2172,13 +2262,19 @@ function renderLogForm() {
     r1Side = m.r1Side;
     r1Winner = m.r1Winner;
     r2Winner = m.r2Winner;
+    // Nạp tỉ số séc nếu là trận kiểu mới
+    r1ScoreA = m.r1ScoreA ?? null; r1ScoreB = m.r1ScoreB ?? null;
+    r2ScoreA = m.r2ScoreA ?? null; r2ScoreB = m.r2ScoreB ?? null;
 
     editBanner.style.display = 'flex';
     editText.textContent = `✏️ Đang sửa TRẬN #${state.matches.length - editingMatchIndex} — ${m.date || ''}`;
 
     renderRosters();
     renderRoundSides();
-    renderRoundWinners();
+    const setScore = (id,v) => { const e=document.getElementById(id); if(e) e.value=(v!=null?v:''); };
+    setScore('r1-score-a', r1ScoreA); setScore('r1-score-b', r1ScoreB);
+    setScore('r2-score-a', r2ScoreA); setScore('r2-score-b', r2ScoreB);
+    onScoreInput();
     renderStatsInputs(1);
     renderStatsInputs(2);
 
@@ -2334,36 +2430,31 @@ function renderRoundSides() {
   setSideBadge('r2-b-sidebadge2', r2bSide);
 }
 
-function selectRoundWinner(round, team) {
-  if (round === 1) r1Winner = team;
-  else             r2Winner = team;
-  renderRoundWinners();
+function onScoreInput() {
+  const gv = id => { const e=document.getElementById(id); if(!e||e.value==='')return null; const n=parseInt(e.value); return isNaN(n)?null:Math.max(0,n); };
+  r1ScoreA = gv('r1-score-a'); r1ScoreB = gv('r1-score-b');
+  r2ScoreA = gv('r2-score-a'); r2ScoreB = gv('r2-score-b');
+  // Suy winner mỗi round từ tỉ số séc (bên nhiều séc hơn thắng round đó)
+  r1Winner = (r1ScoreA!=null && r1ScoreB!=null && r1ScoreA!==r1ScoreB) ? (r1ScoreA>r1ScoreB?'A':'B') : null;
+  r2Winner = (r2ScoreA!=null && r2ScoreB!=null && r2ScoreA!==r2ScoreB) ? (r2ScoreA>r2ScoreB?'A':'B') : null;
+
+  const setOutcome = (elId, sa, sb) => {
+    const el = document.getElementById(elId); if(!el) return;
+    if (sa==null || sb==null) { el.textContent='Nhập tỉ số séc'; el.className='round-outcome-line'; return; }
+    if (sa===sb) { el.textContent=`Hòa séc ${sa}-${sb}`; el.className='round-outcome-line'; return; }
+    const w = sa>sb?'A':'B';
+    el.textContent = `Team ${w} thắng round ${Math.max(sa,sb)}-${Math.min(sa,sb)}`;
+    el.className = 'round-outcome-line ' + (w==='A'?'win-a':'win-b');
+  };
+  setOutcome('r1-round-outcome', r1ScoreA, r1ScoreB);
+  setOutcome('r2-round-outcome', r2ScoreA, r2ScoreB);
+
   renderSummary();
   updateStepStates();
   saveDraft();
 }
 
-function renderRoundWinners() {
-  const set = (id, val, team) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.className = 'winner-btn';
-    if (val === team) el.classList.add(team==='A'?'sel-a':'sel-b');
-    else if (val) el.classList.add('loser');
-  };
-  set('r1-win-a', r1Winner, 'A'); set('r1-win-b', r1Winner, 'B');
-  set('r2-win-a', r2Winner, 'A'); set('r2-win-b', r2Winner, 'B');
-
-  const outcome = (winnerVal, tm, elId) => {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    if (!winnerVal) { el.textContent='—'; el.className='outcome-tag'; return; }
-    if (winnerVal === tm.toUpperCase()) { el.textContent='✓ Thắng round'; el.className='outcome-tag outcome-win'; }
-    else                                 { el.textContent='✗ Thua round'; el.className='outcome-tag outcome-lose'; }
-  };
-  outcome(r1Winner, 'A', 'r1-outcome-a'); outcome(r1Winner, 'B', 'r1-outcome-b');
-  outcome(r2Winner, 'A', 'r2-outcome-a'); outcome(r2Winner, 'B', 'r2-outcome-b');
-}
+function renderRoundWinners() { /* thay bằng onScoreInput — giữ hàm rỗng để tương thích lời gọi cũ */ }
 
 function renderStatsInputs(round) {
   const renderTeam = (tm, set) => {
@@ -2576,6 +2667,7 @@ function saveDraft() {
     teamA: [...selA],
     teamB: [...selB],
     r1Side, r1Winner, r2Winner,
+    r1ScoreA, r1ScoreB, r2ScoreA, r2ScoreB,
     stats: {},
     isEditing: editingMatchIndex !== null,
   };
@@ -2602,9 +2694,14 @@ function loadDraft() {
   r1Side = d.r1Side;
   r1Winner = d.r1Winner;
   r2Winner = d.r2Winner;
+  r1ScoreA = d.r1ScoreA ?? null; r1ScoreB = d.r1ScoreB ?? null;
+  r2ScoreA = d.r2ScoreA ?? null; r2ScoreB = d.r2ScoreB ?? null;
+  const setScore = (id,v) => { const e=document.getElementById(id); if(e&&v!=null) e.value=v; };
+  setScore('r1-score-a', r1ScoreA); setScore('r1-score-b', r1ScoreB);
+  setScore('r2-score-a', r2ScoreA); setScore('r2-score-b', r2ScoreB);
   renderRosters();
   renderRoundSides();
-  renderRoundWinners();
+  onScoreInput();
   renderStatsInputs(1);
   renderStatsInputs(2);
   Object.entries(d.stats || {}).forEach(([idStr, s]) => {
@@ -2623,14 +2720,18 @@ function loadDraft() {
 }
 
 function computeMatchPreview() {
-  if (!r1Winner || !r2Winner) return null;
-  const aWins = (r1Winner==='A'?1:0) + (r2Winner==='A'?1:0);
-  const bWins = 2 - aWins;
+  // Cần đủ tỉ số séc cả 2 round
+  if (r1ScoreA==null || r1ScoreB==null || r2ScoreA==null || r2ScoreB==null) return null;
+  const secA = r1ScoreA + r2ScoreA;   // tổng séc thắng cả buổi
+  const secB = r1ScoreB + r2ScoreB;
   let result;
-  if (aWins > bWins) result = 'A';
-  else if (bWins > aWins) result = 'B';
-  else result = 'DRAW';
-  return { aWins, bWins, result };
+  if (secA > secB) result = 'A';
+  else if (secB > secA) result = 'B';
+  else result = 'DRAW';   // tổng séc bằng nhau (hiếm) → coi như hòa
+  // aWins/bWins giữ ý nghĩa "số round thắng" để hiển thị, nhưng result tính theo tổng séc
+  const aWins = (r1ScoreA>r1ScoreB?1:0) + (r2ScoreA>r2ScoreB?1:0);
+  const bWins = (r1ScoreB>r1ScoreA?1:0) + (r2ScoreB>r2ScoreA?1:0);
+  return { aWins, bWins, result, secA, secB };
 }
 
 function renderSummary() {
@@ -2642,7 +2743,7 @@ function renderSummary() {
   }
   const preview = computeMatchPreview();
   if (!preview) {
-    el.innerHTML = '<div style="color:var(--dim);text-align:center;padding:14px;font-size:11px;">Chọn winner cả 2 round để xem tóm tắt</div>';
+    el.innerHTML = '<div style="color:var(--dim);text-align:center;padding:14px;font-size:11px;">Nhập tỉ số séc cả 2 round để xem tóm tắt</div>';
     return;
   }
   const avgTier = set => {
@@ -2650,22 +2751,22 @@ function renderSummary() {
     return arr.length ? arr.reduce((s,t)=>s+t,0)/arr.length : null;
   };
   const tA = avgTier(selA), tB = avgTier(selB);
+  const { secA, secB } = preview;
   let finalText, finalColor;
-  if (preview.result === 'DRAW') { finalText = '🤝 HÒA 1-1'; finalColor = '#c0c0c0'; }
-  else if (preview.result === 'A') { finalText = `🏆 TEAM A THẮNG ${preview.aWins}-${preview.bWins}`; finalColor = 'var(--blue)'; }
-  else { finalText = `🏆 TEAM B THẮNG ${preview.bWins}-${preview.aWins}`; finalColor = 'var(--orange)'; }
+  if (preview.result === 'DRAW') { finalText = `🤝 HÒA SÉC ${secA}-${secB}`; finalColor = '#c0c0c0'; }
+  else if (preview.result === 'A') { finalText = `🏆 TEAM A THẮNG (tổng séc ${secA}-${secB})`; finalColor = 'var(--blue)'; }
+  else { finalText = `🏆 TEAM B THẮNG (tổng séc ${secB}-${secA})`; finalColor = 'var(--orange)'; }
 
-  let bonusText;
-  if (preview.result === 'DRAW') {
-    bonusText = `<span style="color:var(--gold);">🤝 Hòa 1-1 → cả 2 team +5 điểm/người</span>`;
-  } else {
-    const winT = preview.result;
-    bonusText = `<span style="color:var(--gold);">🏆 Team ${winT} thắng 2-0 → Team ${winT} +5 điểm/người (bonus thắng)</span>`;
-  }
+  const total = secA + secB;
+  const ratio = total>0 ? (Math.max(secA,secB)/total*100).toFixed(0) : 50;
+  const bonusText = preview.result==='DRAW'
+    ? `<span style="color:var(--dim);">Tổng séc bằng nhau — Elo gần như không đổi</span>`
+    : `<span style="color:var(--gold);">Tỉ lệ séc bên thắng: ${ratio}% → Elo thay đổi theo mức áp đảo</span>`;
 
   el.innerHTML = `
-    <div class="summary-row"><span>Round 1:</span> <span>Team ${r1Winner} thắng</span></div>
-    <div class="summary-row"><span>Round 2:</span> <span>Team ${r2Winner} thắng</span></div>
+    <div class="summary-row"><span>Round 1:</span> <span>${r1ScoreA}-${r1ScoreB}${r1Winner?` (Team ${r1Winner})`:''}</span></div>
+    <div class="summary-row"><span>Round 2:</span> <span>${r2ScoreA}-${r2ScoreB}${r2Winner?` (Team ${r2Winner})`:''}</span></div>
+    <div class="summary-row"><span>Tổng séc:</span> <b>Team A ${secA} — ${secB} Team B</b></div>
     <div class="summary-row" style="padding:8px 0;">${bonusText}</div>
     <div class="summary-row"><span>Tier TB Team A:</span> <b>${tA!=null?tA.toFixed(2):'—'}</b></div>
     <div class="summary-row"><span>Tier TB Team B:</span> <b>${tB!=null?tB.toFixed(2):'—'}</b></div>
@@ -2681,12 +2782,14 @@ function updateStepStates() {
   const btn= document.getElementById('submit-btn');
   const exportBtn = document.getElementById('export-btn');
 
+  const scoresFilled = (r1ScoreA!=null && r1ScoreB!=null && r2ScoreA!=null && r2ScoreB!=null);
+  const r1Filled = (r1ScoreA!=null && r1ScoreB!=null);
   s2.classList.toggle('locked', selA.size === 0);
   s3.classList.toggle('locked', selA.size === 0 || selB.size === 0);
-  s4.classList.toggle('locked', !r1Side || !r1Winner);
-  s5.classList.toggle('locked', !r1Winner || !r2Winner);
+  s4.classList.toggle('locked', !r1Side || !r1Filled);
+  s5.classList.toggle('locked', !scoresFilled);
 
-  btn.disabled = !(selA.size > 0 && selB.size > 0 && r1Side && r1Winner && r2Winner);
+  btn.disabled = !(selA.size > 0 && selB.size > 0 && r1Side && scoresFilled);
   const bothChosen = selA.size > 0 && selB.size > 0;
   if (exportBtn) exportBtn.disabled = !bothChosen;
   const saveBtn = document.getElementById('save-lineup-btn');
@@ -2696,7 +2799,9 @@ function updateStepStates() {
 function submitMatch() {
   if (!selA.size || !selB.size) { showToast('Cần chọn người chơi cả 2 team!', true); return; }
   if (!r1Side)   { showToast('Chọn side cho Round 1!', true); return; }
-  if (!r1Winner || !r2Winner) { showToast('Chọn winner cho cả 2 round!', true); return; }
+  if (r1ScoreA==null || r1ScoreB==null || r2ScoreA==null || r2ScoreB==null) {
+    showToast('Nhập tỉ số séc cả 2 round!', true); return;
+  }
 
   const date = document.getElementById('match-date').value || new Date().toLocaleDateString('vi-VN');
 
@@ -2711,6 +2816,10 @@ function submitMatch() {
 
   const matchLog = {
     date, r1Side, r1Winner, r2Winner,
+    // Cơ chế mới: lưu tỉ số séc + đánh dấu matchType='score' để engine tính theo tỉ lệ séc
+    matchType: 'score',
+    r1ScoreA, r1ScoreB, r2ScoreA, r2ScoreB,
+    secA: preview.secA, secB: preview.secB,
     aRoundsWon: preview.aWins, bRoundsWon: preview.bWins,
     matchWinner,
     teamA:[...selA], teamB:[...selB],
@@ -2914,6 +3023,19 @@ function showMatchDetail(idx) {
     </div>
 
     <div class="md-rounds-box">
+      ${m.matchType === 'score' ? `
+      <div class="md-round-line">
+        <b>🔵 R1:</b> Team A side = <b>${m.r1Side || '?'}</b> · Tỉ số séc <b>${m.r1ScoreA}-${m.r1ScoreB}</b>${m.r1Winner?` · <b style="color:${m.r1Winner==='A'?'var(--blue)':'var(--orange)'};">Team ${m.r1Winner}</b>`:''}
+        ${tkR1Names.length ? `<br>&nbsp;&nbsp;&nbsp;🏅 Top Kill R1: <b>${tkR1Names.join(', ')}</b>` : ''}
+      </div>
+      <div class="md-round-line">
+        <b>🔴 R2:</b> Team A side = <b>${r2aSide}</b> · Tỉ số séc <b>${m.r2ScoreA}-${m.r2ScoreB}</b>${m.r2Winner?` · <b style="color:${m.r2Winner==='A'?'var(--blue)':'var(--orange)'};">Team ${m.r2Winner}</b>`:''}
+        ${tkR2Names.length ? `<br>&nbsp;&nbsp;&nbsp;🏅 Top Kill R2: <b>${tkR2Names.join(', ')}</b>` : ''}
+      </div>
+      <div class="md-round-line" style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;">
+        <b>Tổng séc:</b> Team A <b style="color:var(--blue);">${m.secA}</b> — <b style="color:var(--orange);">${m.secB}</b> Team B
+      </div>
+      ` : `
       <div class="md-round-line">
         <b>🔵 R1:</b> Team A side = <b>${m.r1Side || '?'}</b> · Team B side = <b>${r1bSide}</b> · Winner: <b style="color:${m.r1Winner==='A'?'var(--blue)':'var(--orange)'};">Team ${m.r1Winner}</b>
         ${tkR1Names.length ? `<br>&nbsp;&nbsp;&nbsp;🏅 Top Kill R1: <b>${tkR1Names.join(', ')}</b>` : ''}
@@ -2922,6 +3044,7 @@ function showMatchDetail(idx) {
         <b>🔴 R2:</b> Team A side = <b>${r2aSide}</b> · Team B side = <b>${r2bSide}</b> · Winner: <b style="color:${m.r2Winner==='A'?'var(--blue)':'var(--orange)'};">Team ${m.r2Winner}</b>
         ${tkR2Names.length ? `<br>&nbsp;&nbsp;&nbsp;🏅 Top Kill R2: <b>${tkR2Names.join(', ')}</b>` : ''}
       </div>
+      `}
     </div>
 
     <div class="md-team-grid">
@@ -2975,38 +3098,71 @@ function showEloBreakdown(idx, id) {
   const expPct = e => Math.round(e*100);
 
   let lines = '';
-  [1,2].forEach(rn => {
-    const r = rounds[rn];
-    if (!r) return;
-    const kqText = r.won ? 'Thắng' : 'Thua';
-    // Mô tả độ khó kèo theo kỳ vọng
+  let introText = '';
+
+  if (m.matchType === 'score' && d.eloScore) {
+    // Cơ chế MỚI: giải thích theo tỉ lệ séc
+    const s = d.eloScore;
+    introText = 'Tính theo TỈ LỆ SÉC cả buổi. Điểm số thực tế = séc thắng / tổng séc. Elo thay đổi = K × (tỉ lệ séc − kỳ vọng). Thắng càng áp đảo (tỉ lệ séc càng cao) càng được nhiều. Cộng thêm thưởng/phạt theo kill so với TB trận.';
+    const actualPct = Math.round(s.actual*100);
     let keo;
-    if (r.expected >= 0.65) keo = 'kèo dễ (được dự đoán thắng)';
-    else if (r.expected <= 0.35) keo = 'kèo khó (bị dự đoán thua)';
+    if (s.expected >= 0.65) keo = 'kèo dễ (dự đoán thắng)';
+    else if (s.expected <= 0.35) keo = 'kèo khó (dự đoán thua)';
     else keo = 'kèo cân';
-    const baseColor = r.base >= 0 ? 'var(--green)' : 'var(--red)';
-    const perfColor = r.perf >= 0 ? 'var(--green)' : 'var(--red)';
-    lines += `
+    const baseColor = s.base >= 0 ? 'var(--green)' : 'var(--red)';
+    const perfColor = s.perf >= 0 ? 'var(--green)' : 'var(--red)';
+    lines = `
       <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;">
-        <div style="font-weight:700;color:var(--gold);margin-bottom:6px;">Round ${rn}: ${kqText} — ${keo}</div>
+        <div style="font-weight:700;color:var(--gold);margin-bottom:6px;">Kết quả buổi — ${keo}</div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
-          <span>Kỳ vọng thắng trước round</span><span><b>${expPct(r.expected)}%</b></span>
+          <span>Séc thắng / tổng séc</span><span><b>${s.secWon}/${s.secTotal} = ${actualPct}%</b></span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
-          <span>Điểm thắng/thua (K=${r.K})</span><span style="color:${baseColor};font-weight:700;">${fmt(r.base)}</span>
+          <span>Kỳ vọng thắng trước buổi</span><span><b>${expPct(s.expected)}%</b></span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
-          <span>Thưởng/phạt theo kill</span><span style="color:${perfColor};font-weight:700;">${fmt(r.perf)}</span>
+          <span>Điểm theo tỉ lệ séc (K=${s.K})</span><span style="color:${baseColor};font-weight:700;">${fmt(s.base)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
+          <span>Thưởng/phạt theo kill</span><span style="color:${perfColor};font-weight:700;">${fmt(s.perf)}</span>
         </div>
       </div>`;
-  });
+  } else {
+    // Cơ chế CŨ: theo từng round
+    introText = 'Mỗi round tính riêng. Điểm thắng/thua = K × (kết quả − kỳ vọng). Thắng kèo khó được nhiều, thua kèo dễ mất nhiều. Cộng thêm thưởng/phạt theo kill so với trung bình trận.';
+    const rounds = d.eloRounds || {};
+    [1,2].forEach(rn => {
+      const r = rounds[rn];
+      if (!r) return;
+      const kqText = r.won ? 'Thắng' : 'Thua';
+      let keo;
+      if (r.expected >= 0.65) keo = 'kèo dễ (được dự đoán thắng)';
+      else if (r.expected <= 0.35) keo = 'kèo khó (bị dự đoán thua)';
+      else keo = 'kèo cân';
+      const baseColor = r.base >= 0 ? 'var(--green)' : 'var(--red)';
+      const perfColor = r.perf >= 0 ? 'var(--green)' : 'var(--red)';
+      lines += `
+        <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;">
+          <div style="font-weight:700;color:var(--gold);margin-bottom:6px;">Round ${rn}: ${kqText} — ${keo}</div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
+            <span>Kỳ vọng thắng trước round</span><span><b>${expPct(r.expected)}%</b></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
+            <span>Điểm thắng/thua (K=${r.K})</span><span style="color:${baseColor};font-weight:700;">${fmt(r.base)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin:3px 0;">
+            <span>Thưởng/phạt theo kill</span><span style="color:${perfColor};font-weight:700;">${fmt(r.perf)}</span>
+          </div>
+        </div>`;
+    });
+  }
 
   const totalColor = total >= 0 ? 'var(--green)' : 'var(--red)';
   const body = `
     <div style="font-size:13px;color:var(--dim);margin-bottom:10px;">
-      Mỗi round tính riêng. Điểm thắng/thua = K × (kết quả − kỳ vọng). Thắng kèo khó được nhiều, thua kèo dễ mất nhiều. Cộng thêm thưởng/phạt theo kill so với trung bình trận.
+      ${introText}
     </div>
-    ${lines || '<div style="color:var(--dim);">Không có dữ liệu round.</div>'}
+    ${lines || '<div style="color:var(--dim);">Không có dữ liệu.</div>'}
     <div style="border-top:2px solid var(--gold);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-weight:700;">TỔNG THAY ĐỔI ELO</span>
       <span style="font-size:20px;font-weight:700;font-family:'Orbitron',monospace;color:${totalColor};">${fmt(total)}</span>
