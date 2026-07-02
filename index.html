@@ -1982,6 +1982,11 @@ function recalcAllRatings() {
       applyEloForRound(m, 1, preExp);  // cơ chế cũ (trận cũ): tính từng round
       applyEloForRound(m, 2, preExp);
     }
+    // Placement đếm theo BUỔI: mỗi trận (bất kể cũ 2-round hay mới theo séc)
+    // chỉ cộng 1 vào placementCount cho mỗi người tham gia → ngưỡng "10" = 10 buổi.
+    [...idsA, ...idsB].forEach(id => {
+      state.players[id].placementCount = (state.players[id].placementCount || 0) + 1;
+    });
     // Ghi delta = rating sau cả 2 round − rating trước trận
     Object.keys(before).forEach(id => {
       if (!m.details[id]) return;
@@ -2029,7 +2034,7 @@ function applyEloScoreMatch(m, preExp) {
       const perfDelta = Math.max(-ELO.perfBonusCap, Math.min(ELO.perfBonusCap, perfRaw));
       const delta = baseDelta + perfDelta;
       p.rating = Math.round((p.rating + delta) * 10) / 10;
-      p.placementCount = (p.placementCount || 0) + 1;
+      // (placementCount tăng 1 LẦN/buổi ở recalc loop)
       if (m.details[id]) {
         // Lưu breakdown kiểu score (1 mục thay vì 2 round)
         m.details[id].eloScore = {
@@ -2092,7 +2097,7 @@ function applyEloForRound(m, roundNo, preExp) {
       const perfDelta = Math.max(-ELO.perfBonusCap, Math.min(ELO.perfBonusCap, perfRaw));
       const delta = baseDelta + perfDelta;
       p.rating = Math.round((p.rating + delta) * 10) / 10;
-      p.placementCount = (p.placementCount || 0) + 1;
+      // (placementCount tăng 1 LẦN/buổi ở recalc loop, không tăng ở đây)
       // Ghi lại breakdown round này để người chơi xem vì sao +/- bằng đó
       if (m.details[id]) {
         if (!m.details[id].eloRounds) m.details[id].eloRounds = {};
